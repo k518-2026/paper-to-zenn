@@ -148,9 +148,9 @@ function generateExecutionLog(article) {
     const now = new Date();
     const logPath = path.join(OBSIDIAN_VAULT, '実行ログ.md');
 
-    let logContent = fs.existsSync(logPath)
-      ? fs.readFileSync(logPath, 'utf-8')
-      : `---
+    // 新しいエントリはこのマーカーの直後に差し込む
+    const MARKER = '<!-- LOG-ENTRIES -->';
+    const header = `---
 title: 実行ログ
 tags: [execution, log, daily]
 ---
@@ -161,7 +161,17 @@ tags: [execution, log, daily]
 
 ---
 
+${MARKER}
+
 `;
+
+    let logContent = fs.existsSync(logPath)
+      ? fs.readFileSync(logPath, 'utf-8')
+      : header;
+
+    if (!logContent.includes(MARKER)) {
+      logContent = header + logContent;
+    }
 
     // 新しいログエントリを追加（最新のものが上に来るように）
     const logEntry = `## ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
@@ -173,15 +183,8 @@ tags: [execution, log, daily]
 
 `;
 
-    // ログの日時情報の下に新しいエントリを挿入
-    const lines = logContent.split('\n');
-    const indexPos = lines.findIndex(line => line.startsWith('---'));
-    if (indexPos !== -1) {
-      lines.splice(indexPos + 3, 0, logEntry);
-      logContent = lines.join('\n');
-    } else {
-      logContent += logEntry;
-    }
+    // マーカー直後に挿入して最新を先頭に保つ
+    logContent = logContent.replace(MARKER, `${MARKER}\n\n${logEntry.trimEnd()}\n`);
 
     fs.writeFileSync(logPath, logContent, 'utf-8');
     console.log(`✅ 実行ログを更新`);
@@ -229,7 +232,7 @@ tags: [statistics, metrics, daily]
 ## 📅 実行日時
 - **開始日**: 2026-09-08
 - **頻度**: 毎日 06:00 AM (Asia/Tokyo)
-- **実行環境**: Anthropic Cloud
+- **実行環境**: GitHub Actions (k518-2026/paper-to-zenn)
 
 ## 📚 記事情報
 - **記事形式**: Markdown
