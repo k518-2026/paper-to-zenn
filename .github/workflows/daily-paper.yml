@@ -5,6 +5,11 @@ on:
     # 毎日 06:00 (Asia/Tokyo) = 21:00 UTC 前日
     - cron: '0 21 * * *'
   workflow_dispatch:
+    inputs:
+      post_to_bluesky:
+        description: 'Bluesky に投稿する'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -32,7 +37,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BLUESKY_EMAIL: ${{ secrets.BLUESKY_EMAIL }}
           BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
-          AUTO_POST_TO_BLUESKY: 'true'
+          # スケジュール実行は常に投稿、手動実行のみ入力で抑制できる
+          AUTO_POST_TO_BLUESKY: ${{ github.event_name != 'workflow_dispatch' || inputs.post_to_bluesky }}
           AUTO_POST_TO_ZENN: 'true'
           GITHUB_REPO: paper-to-zenn
           GITHUB_USERNAME: ${{ github.repository_owner }}
