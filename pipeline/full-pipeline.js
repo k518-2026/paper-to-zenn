@@ -10,6 +10,7 @@ const { createInfographic, saveSvgImage, convertSvgToPng, saveInfographicMetadat
 const { generateXPostFile } = require('./post-to-x-simple');
 const { postToBluesky } = require('./post-to-bluesky');
 const { postToZenn } = require('./post-to-zenn');
+const { postToHatena } = require('./post-to-hatena');
 const { generateOchiaiSummary } = require('./generate-ochiahi-summary');
 
 /**
@@ -155,6 +156,26 @@ async function runFullPipeline() {
       console.log('\n【ステップ 6】 Zenn に投稿');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       await postToZenn(paper, summary.summary, infographicPath);
+    }
+
+    // 7. はてなブログに投稿
+    if (process.env.AUTO_POST_TO_HATENA === 'true') {
+      console.log('\n【ステップ 7】 はてなブログに投稿');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+      // 画像は Zenn リポジトリにコミットされる PNG を raw URL で参照する
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+      const owner = process.env.GITHUB_USERNAME || 'k518-2026';
+      const repo = process.env.GITHUB_REPO || 'paper-to-zenn';
+      const imageUrl = infographicPath
+        ? `https://raw.githubusercontent.com/${owner}/${repo}/main/images/${today}-infographic.png`
+        : undefined;
+
+      // HATENA_DRAFT=true で下書き投稿（公開せず動作確認したいとき用）
+      await postToHatena(paper, summary.summary, {
+        imageUrl,
+        draft: process.env.HATENA_DRAFT === 'true'
+      });
     }
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

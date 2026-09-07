@@ -40,6 +40,10 @@ jobs:
           # スケジュール実行は常に投稿、手動実行のみ入力で抑制できる
           AUTO_POST_TO_BLUESKY: ${{ github.event_name != 'workflow_dispatch' || inputs.post_to_bluesky }}
           AUTO_POST_TO_ZENN: 'true'
+          HATENA_ID: k518
+          HATENA_BLOG_ID: k518.hatenablog.com
+          HATENA_API_KEY: ${{ secrets.HATENA_API_KEY }}
+          AUTO_POST_TO_HATENA: 'true'
           GITHUB_REPO: paper-to-zenn
           GITHUB_USERNAME: ${{ github.repository_owner }}
           ZENN_REPO_PATH: ${{ github.workspace }}
