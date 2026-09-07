@@ -1,0 +1,54 @@
+name: Daily Paper to Zenn
+
+on:
+  schedule:
+    # 毎日 06:00 (Asia/Tokyo) = 21:00 UTC 前日
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 依存パッケージをインストール
+        working-directory: pipeline
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: パイプラインを実行
+        working-directory: pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BLUESKY_EMAIL: ${{ secrets.BLUESKY_EMAIL }}
+          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
+          AUTO_POST_TO_BLUESKY: 'true'
+          AUTO_POST_TO_ZENN: 'true'
+          GITHUB_REPO: paper-to-zenn
+          GITHUB_USERNAME: ${{ github.repository_owner }}
+          ZENN_REPO_PATH: ${{ github.workspace }}
+          OBSIDIAN_VAULT_PATH: ${{ github.workspace }}/obsidian
+          SKIP_GIT_PUSH: 'true'
+        run: node full-pipeline.js
+
+      - name: 生成物をコミット
+        run: |
+          git config user.name "Paper-to-Note Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add articles/ images/ obsidian/
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "Add article for $(TZ=Asia/Tokyo date +%Y-%m-%d)"
+            git push
+          fi
