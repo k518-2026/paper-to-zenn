@@ -204,7 +204,7 @@ async function runFullPipeline() {
     // 3. インフォグラフィック作成
     console.log('\n【ステップ 3】 インフォグラフィック作成');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    const infographicPath = await createAndSaveInfographic(paper);
+    const infographicPath = await createAndSaveInfographic(paper, summary.summary);
 
     // 4. Obsidian に記録
     console.log('\n【ステップ 4】 Obsidian に記録');
@@ -266,9 +266,9 @@ async function runFullPipeline() {
 /**
  * インフォグラフィックを作成して保存
  */
-async function createAndSaveInfographic(paper) {
+async function createAndSaveInfographic(paper, summary) {
   try {
-    const svgContent = createInfographic(paper);
+    const svgContent = createInfographic(paper, summary);
     if (!svgContent) {
       return null;
     }

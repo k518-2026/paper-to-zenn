@@ -6,111 +6,183 @@ const path = require('path');
  * @param {Object} paper - 論文データ
  * @returns {string} SVG コンテンツ
  */
-function createInfographic(paper) {
+const FONTS = "'Noto Sans CJK JP','Noto Sans JP','Yu Gothic','Hiragino Sans','Meiryo',sans-serif";
+
+function escapeXml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** 全角は1、半角は0.55として文字幅を概算する */
+function visualWidth(str) {
+  let w = 0;
+  for (const ch of str) w += /[　-ヿ一-鿿＀-｠]/.test(ch) ? 1 : 0.55;
+  return w;
+}
+
+const CJK = /[　-ヿ一-鿿＀-｠]/;
+/** 行頭に置けない文字（句読点・閉じ括弧） */
+const NO_LINE_START = /[、。，．）」』】〉》〕｝〙〗！？：；ー]/;
+/** 行末に置けない文字（開き括弧） */
+const NO_LINE_END = /[（「『【〈《〔｛〘〖]/;
+
+/**
+ * 指定幅（em単位）で折り返す
+ * 日本語は単語間に空白がないため、空白ではなく文字単位で改行位置を決める
+ */
+function wrapText(str, maxUnits, maxLines) {
+  const chars = [...str.trim()];
+  const lines = [];
+  let line = '';
+
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (visualWidth(line + ch) <= maxUnits) {
+      line += ch;
+      continue;
+    }
+
+    // 行頭禁則: 句読点や閉じ括弧が次行の先頭に来るならこの行に含める
+    if (NO_LINE_START.test(ch)) {
+      line += ch;
+      continue;
+    }
+
+    // 欧文の途中なら直前の空白まで戻して単語を割らない
+    let carry = '';
+    if (!CJK.test(ch) && ch !== ' ') {
+      const lastSpace = line.lastIndexOf(' ');
+      if (lastSpace > maxUnits * 0.4) {
+        carry = line.slice(lastSpace + 1);
+        line = line.slice(0, lastSpace);
+      }
+    }
+
+    // 行末禁則: 開き括弧で終わるなら次行へ送る
+    if (NO_LINE_END.test(line[line.length - 1])) {
+      carry = line[line.length - 1] + carry;
+      line = line.slice(0, -1);
+    }
+
+    lines.push(line.trim());
+    line = carry + ch;
+
+    if (lines.length === maxLines) {
+      lines[maxLines - 1] = lines[maxLines - 1].replace(/[\s、。,.;:]+$/, '') + '…';
+      return lines;
+    }
+  }
+
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+
+/** 落合式要約から「どんなもの？」の本文を1文取り出す */
+function extractConcept(summary) {
+  if (!summary) return null;
+
+  const section = summary.match(/##\s*0\.[^\n]*\n+([\s\S]*?)(?=\n#{1,3}\s|\n---|$)/);
+  let text = section ? section[1] : null;
+
+  if (!text) {
+    // 見出し・強調・箇条書きを除いた最初の段落を使う
+    const para = summary
+      .split(/\n\s*\n/)
+      .map(p => p.trim())
+      .find(p => p && !p.startsWith('#') && !p.startsWith('-') && !p.startsWith('**') && !p.startsWith('>'));
+    text = para || null;
+  }
+  if (!text) return null;
+
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/[*`>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function createInfographic(paper, summary) {
   try {
     console.log('🎨 インフォグラフィックを作成中...\n');
 
-    // 論文タイトルを縮約
-    const shortTitle = paper.title.length > 50
-      ? paper.title.substring(0, 47) + '...'
-      : paper.title;
+    // 描画幅 1056px を font-size で割った値が1行あたりの上限
+    const titleLines = wrapText(paper.title, 23, 3);
 
-    // 著者名を縮約
-    const shortAuthors = paper.authors.length > 60
-      ? paper.authors.substring(0, 57) + '...'
+    const concept = extractConcept(summary);
+    const conceptLines = concept ? wrapText(concept, 47, 4) : [];
+
+    const authors = paper.authors.length > 44
+      ? paper.authors.substring(0, 43) + '…'
       : paper.authors;
 
-    // SVG でインフォグラフィックを生成
+    const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' });
+
+    // タイトルは行数に応じて上に伸ばし、下の要素と衝突させない
+    const titleTop = 214 - (titleLines.length - 1) * 30;
+
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-  <!-- 背景 -->
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#141E33"/>
+      <stop offset="100%" stop-color="#1B2942"/>
     </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="88%" cy="8%" r="55%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <rect width="1200" height="630" fill="url(#grad1)"/>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
 
-  <!-- タイトルバー -->
-  <rect x="0" y="0" width="1200" height="100" fill="#ffffff" opacity="0.95"/>
+  <!-- 左端のアクセント -->
+  <rect x="0" y="0" width="8" height="630" fill="url(#accent)"/>
+
+  <!-- ヘッダー -->
+  <text x="72" y="86" font-family=${JSON.stringify(FONTS)} font-size="15" font-weight="700"
+        fill="#7DD3FC" letter-spacing="3.5">arXiv · cs.CY</text>
+  <text x="1128" y="86" font-family=${JSON.stringify(FONTS)} font-size="15" font-weight="600"
+        fill="#64748B" text-anchor="end" letter-spacing="1.5">Paper-to-Note Daily</text>
+  <line x1="72" y1="108" x2="1128" y2="108" stroke="#1E293B" stroke-width="1"/>
 
   <!-- 論文タイトル -->
-  <text x="50" y="50" font-size="36" font-weight="bold" fill="#333333" font-family="Arial, sans-serif">
-    📚 論文要約
+  <text x="72" y="${titleTop}" font-family=${JSON.stringify(FONTS)} font-size="44" font-weight="700" fill="#F1F5F9">
+${titleLines.map((l, i) => `    <tspan x="72" dy="${i === 0 ? 0 : 60}">${escapeXml(l)}</tspan>`).join('\n')}
   </text>
 
-  <!-- メインコンテンツ背景 -->
-  <rect x="40" y="120" width="1120" height="470" fill="#ffffff" rx="15" opacity="0.95"/>
+  <!-- 概要（要約が無い場合は描画しない） -->
+${conceptLines.length ? `  <rect x="72" y="306" width="5" height="${conceptLines.length * 38 - 8}" rx="2.5" fill="url(#accent)"/>
+  <text x="102" y="332" font-family=${JSON.stringify(FONTS)} font-size="21" fill="#CBD5E1">
+${conceptLines.map((l, i) => `    <tspan x="102" dy="${i === 0 ? 0 : 38}">${escapeXml(l)}</tspan>`).join('\n')}
+  </text>` : ''}
 
-  <!-- 左側：論文情報 -->
-  <g>
-    <!-- タイトルセクション -->
-    <text x="80" y="170" font-size="24" font-weight="bold" fill="#667eea" font-family="Arial, sans-serif">
-      📖 タイトル
-    </text>
-    <text x="80" y="210" font-size="18" fill="#333333" font-family="Arial, sans-serif" word-spacing="5">
-      ${shortTitle}
-    </text>
+  <!-- メタ情報 -->
+  <line x1="72" y1="498" x2="1128" y2="498" stroke="#1E293B" stroke-width="1"/>
 
-    <!-- 著者セクション -->
-    <text x="80" y="260" font-size="24" font-weight="bold" fill="#667eea" font-family="Arial, sans-serif">
-      👥 著者
-    </text>
-    <text x="80" y="300" font-size="16" fill="#666666" font-family="Arial, sans-serif">
-      ${shortAuthors}
-    </text>
+  <text x="72" y="536" font-family=${JSON.stringify(FONTS)} font-size="13" font-weight="700"
+        fill="#475569" letter-spacing="2">AUTHOR</text>
+  <text x="72" y="566" font-family=${JSON.stringify(FONTS)} font-size="20" fill="#E2E8F0">${escapeXml(authors)}</text>
 
-    <!-- 日付セクション -->
-    <text x="80" y="350" font-size="24" font-weight="bold" fill="#667eea" font-family="Arial, sans-serif">
-      📅 発表日
-    </text>
-    <text x="80" y="390" font-size="18" fill="#333333" font-family="Arial, sans-serif" font-weight="bold">
-      ${paper.published}
-    </text>
-  </g>
+  <text x="700" y="536" font-family=${JSON.stringify(FONTS)} font-size="13" font-weight="700"
+        fill="#475569" letter-spacing="2">SUBMITTED</text>
+  <text x="700" y="566" font-family=${JSON.stringify(FONTS)} font-size="20" fill="#E2E8F0">${escapeXml(paper.published)}</text>
 
-  <!-- 右側：ハイライト情報 -->
-  <g>
-    <!-- ハイライトボックス1 -->
-    <rect x="650" y="160" width="480" height="120" fill="#f0f4ff" rx="10" stroke="#667eea" stroke-width="2"/>
-    <text x="680" y="190" font-size="18" font-weight="bold" fill="#667eea" font-family="Arial, sans-serif">
-      🔍 主要テーマ
-    </text>
-    <text x="680" y="230" font-size="14" fill="#333333" font-family="Arial, sans-serif">
-      ICT活用教育 | デジタル学習
-    </text>
-    <text x="680" y="255" font-size="14" fill="#333333" font-family="Arial, sans-serif">
-      教育技術 | 学習成果
-    </text>
+  <text x="920" y="536" font-family=${JSON.stringify(FONTS)} font-size="13" font-weight="700"
+        fill="#475569" letter-spacing="2">arXiv ID</text>
+  <text x="920" y="566" font-family=${JSON.stringify(FONTS)} font-size="20" fill="#7DD3FC">${escapeXml(paper.arxivId || '—')}</text>
 
-    <!-- ハイライトボックス2 -->
-    <rect x="650" y="310" width="480" height="140" fill="#fff0f4" rx="10" stroke="#764ba2" stroke-width="2"/>
-    <text x="680" y="340" font-size="18" font-weight="bold" fill="#764ba2" font-family="Arial, sans-serif">
-      💡 要約のポイント
-    </text>
-    <text x="680" y="380" font-size="13" fill="#333333" font-family="Arial, sans-serif">
-      教育の未来を形作る最新研究
-    </text>
-    <text x="680" y="405" font-size="13" fill="#333333" font-family="Arial, sans-serif">
-      実践的な学習戦略の提示
-    </text>
-    <text x="680" y="430" font-size="13" fill="#333333" font-family="Arial, sans-serif">
-      デジタル時代の教育課題に対応
-    </text>
-  </g>
-
-  <!-- フッター -->
-  <rect x="0" y="610" width="1200" height="20" fill="#333333"/>
-  <text x="50" y="622" font-size="12" fill="#ffffff" font-family="Arial, sans-serif">
-    📰 Paper-to-Note Daily | arXIV 論文要約 | ${new Date().toLocaleDateString('ja-JP')}
-  </text>
-
-  <!-- arXIV リンク情報 -->
-  <text x="900" y="622" font-size="12" fill="#ffffff" font-family="Arial, sans-serif" text-anchor="end">
-    🔗 詳細は note.com/yamamoto.k518 で
-  </text>
+  <text x="1128" y="600" font-family=${JSON.stringify(FONTS)} font-size="13"
+        fill="#334155" text-anchor="end">${escapeXml(today)}</text>
 </svg>`;
 
     return svg;
