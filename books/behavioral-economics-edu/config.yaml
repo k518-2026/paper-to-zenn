@@ -1,0 +1,18 @@
+title: "行動経済学と教育 — 気合と根性を手放す10のレッスン"
+summary: "ナッジ、アンカリング、現在バイアス、プロスペクト理論。人間の脳のクセを前提に教室と家庭の環境を設計し直すための入門書です。子どもの学習行動と教員の指導行動の両面から、10の理論を具体例で解説します。"
+topics: ["行動経済学", "教育", "心理学", "ナッジ", "学習"]
+published: true
+price: 0
+chapters:
+  - preface
+  - nudge
+  - anchoring
+  - present-bias
+  - prospect-theory
+  - heuristics
+  - sunk-cost
+  - framing
+  - confirmation-bias
+  - bandwagon
+  - teacher-bias
+  - references
