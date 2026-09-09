@@ -1,0 +1,22 @@
+title: "教育データのための探索的データ分析（EDA）入門"
+summary: "学校で生まれるデータを、子どもを評価するためではなく理解するために使う。平均・ばらつき・外れ値・相関から主成分分析まで、Excelを中心に手を動かしながら学ぶ入門書です。"
+topics: ["データ分析", "統計", "教育", "EDA", "Excel"]
+published: true
+price: 0
+chapters:
+  - preface
+  - why-data
+  - what-is-data
+  - graphs
+  - averages
+  - spread
+  - outliers
+  - scatter
+  - correlation
+  - questionnaire
+  - groups
+  - pca
+  - whole-picture
+  - finding-issues
+  - ethics
+  - afterword
