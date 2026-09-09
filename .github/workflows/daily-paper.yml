@@ -1,15 +1,24 @@
 name: Daily Paper to Zenn
 
+# 国内論文（J-STAGE）→ 要約 → WordPress + Zenn
+#
+# ワークフロー自体は Actions 画面から手動で無効化してある。
+# 再開するときは Actions → このワークフロー → Enable workflow。
+
 on:
   schedule:
     # 毎日 06:00 (Asia/Tokyo) = 21:00 UTC 前日
     - cron: '0 21 * * *'
   workflow_dispatch:
     inputs:
-      post_to_bluesky:
-        description: 'Bluesky に投稿する'
+      skip_wordpress:
+        description: 'WordPress への投稿を飛ばす（Zenn だけ試す）'
         type: boolean
-        default: true
+        default: false
+      wp_draft:
+        description: 'WordPress は下書きとして投稿する'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,35 +36,28 @@ jobs:
 
       - name: 依存パッケージをインストール
         working-directory: pipeline
-        run: |
-          npm install
-          npx playwright install --with-deps chromium
+        run: npm install
 
       - name: パイプラインを実行
         working-directory: pipeline
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BLUESKY_EMAIL: ${{ secrets.BLUESKY_EMAIL }}
-          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
-          # スケジュール実行は常に投稿、手動実行のみ入力で抑制できる
-          AUTO_POST_TO_BLUESKY: ${{ github.event_name != 'workflow_dispatch' || inputs.post_to_bluesky }}
-          AUTO_POST_TO_ZENN: 'true'
-          HATENA_ID: k518
-          HATENA_BLOG_ID: k518.hatenablog.com
-          HATENA_API_KEY: ${{ secrets.HATENA_API_KEY }}
-          AUTO_POST_TO_HATENA: 'true'
-          GITHUB_REPO: paper-to-zenn
-          GITHUB_USERNAME: ${{ github.repository_owner }}
+          # WordPress.com のメール投稿（設定→執筆→メール投稿 の秘密のアドレス）
+          WP_POST_EMAIL: ${{ secrets.WP_POST_EMAIL }}
+          # 送信元。Gmail の場合はアプリパスワードが必要（通常のパスワードでは送れない）
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          # リポジトリ自体が作業ディレクトリなので、記事の書き出し先を明示する
           ZENN_REPO_PATH: ${{ github.workspace }}
-          OBSIDIAN_VAULT_PATH: ${{ github.workspace }}/obsidian
-          SKIP_GIT_PUSH: 'true'
-        run: node full-pipeline.js
+          SKIP_WORDPRESS: ${{ inputs.skip_wordpress }}
+          WP_DRAFT: ${{ inputs.wp_draft }}
+        run: npm run full
 
       - name: 生成物をコミット
         run: |
-          git config user.name "Paper-to-Note Bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add articles/ images/ obsidian/ posted.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add articles posted.json
           if git diff --staged --quiet; then
             echo "変更なし"
           else

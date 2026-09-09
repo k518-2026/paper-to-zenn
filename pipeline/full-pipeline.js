@@ -1,327 +1,158 @@
 require('dotenv').config();
-const axios = require('axios');
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-// 各モジュールをインポート
-const { saveToObsidian, updateArticleIndex, generateExecutionLog, updateStatistics } = require('./save-to-obsidian');
-const { createInfographic, saveSvgImage, convertSvgToPng, saveInfographicMetadata } = require('./create-infographic');
-const { generateXPostFile } = require('./post-to-x-simple');
-const { postToBluesky } = require('./post-to-bluesky');
-const { postToZenn } = require('./post-to-zenn');
-const { postToHatena } = require('./post-to-hatena');
+const { findPaper } = require('./fetch-jstage');
 const { generateOchiaiSummary } = require('./generate-ochiahi-summary');
+const { postToZenn } = require('./post-to-zenn');
+const { postToWordPress } = require('./post-to-wordpress');
 
 /**
- * 投稿済み論文の記録ファイル
- * CI ではリポジトリにコミットされるため実行間で状態が持続する
+ * 国内論文（J-STAGE）→ 要約 → WordPress + Zenn
+ *
+ *   ステップ1  J-STAGE から未投稿の論文を1件取る（日本語要旨つき）
+ *   ステップ2  Claude で落合陽一式に要約する
+ *   ステップ3  Zenn 記事を articles/ に書き出す
+ *   ステップ4  WordPress へメール投稿する
+ *   ステップ5  投稿済みとして posted.json に記録する
+ *
+ * 記録は投稿が済んでから行う。順序を逆にすると、投稿に失敗した論文が
+ * 「投稿済み」になって二度と拾えなくなる。
  */
-function postedFilePath() {
-  const repoRoot = process.env.ZENN_REPO_PATH
-    || path.join(__dirname, process.env.GITHUB_REPO || 'paper-to-zenn');
-  return path.join(repoRoot, 'posted.json');
+
+function repoRoot() {
+  return process.env.ZENN_REPO_PATH || path.join(__dirname, '..');
 }
 
-function loadPostedIds() {
+function postedFilePath() {
+  return path.join(repoRoot(), 'posted.json');
+}
+
+function loadPosted() {
   const file = postedFilePath();
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) return { posted: [] };
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    return (data.posted || []).map(p => p.arxivId);
+    if (!Array.isArray(data.posted)) data.posted = [];
+    return data;
   } catch (error) {
-    console.error(`⚠️ posted.json の読み込みに失敗: ${error.message}`);
-    return [];
+    console.error(`⚠️ posted.json の読み込みに失敗、新規作成します: ${error.message}`);
+    return { posted: [] };
   }
 }
 
-function recordPosted(paper) {
-  const file = postedFilePath();
-  let data = { posted: [] };
+/** 旧レコード（arXiv 時代の arxivId）も含めて突き合わせる */
+function postedIds(data) {
+  return data.posted.map(p => p.id || p.arxivId).filter(Boolean);
+}
 
-  if (fs.existsSync(file)) {
-    try {
-      data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-      if (!Array.isArray(data.posted)) data.posted = [];
-    } catch (error) {
-      console.error(`⚠️ posted.json の読み込みに失敗、新規作成します: ${error.message}`);
-      data = { posted: [] };
-    }
-  }
-
+function recordPosted(paper, extra) {
+  const data = loadPosted();
   data.posted.unshift({
-    arxivId: paper.arxivId,
+    id: paper.id,
+    doi: paper.doi || '',
     title: paper.title,
-    postedAt: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+    source: 'J-STAGE',
+    theme: paper.theme || '',
+    url: paper.url,
+    postedAt: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }),
+    ...extra
   });
 
+  const file = postedFilePath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n', 'utf-8');
-  console.log(`✅ 投稿済みとして記録: ${paper.arxivId}（累計 ${data.posted.length} 件）`);
+  console.log(`✅ 投稿済みとして記録しました（累計 ${data.posted.length} 件）\n`);
 }
 
-/**
- * arXIV の entry XML を論文オブジェクトに変換
- */
-function parseEntry(entry) {
-  const title = entry.match(/<title>([\s\S]*?)<\/title>/);
-  const author = entry.match(/<author>\s*<name>(.*?)<\/name>/);
-  const summary = entry.match(/<summary>([\s\S]*?)<\/summary>/);
-  const id = entry.match(/<id>(http:\/\/arxiv\.org\/abs\/[\d.]+)/);
-  const published = entry.match(/<published>([\d-]+)/);
+const line = () => console.log('━'.repeat(50) + '\n');
 
-  if (!title || !summary || !id) return null;
-
-  return {
-    title: title[1].trim().replace(/\s+/g, ' '),
-    author: author ? author[1].trim() : 'Unknown',
-    authors: author ? author[1].trim() : 'Unknown',
-    summary: summary[1].trim(),
-    url: id[1],
-    arxivUrl: id[1],
-    arxivId: id[1].split('/').pop(),
-    published: published ? published[1] : 'Unknown'
-  };
-}
-
-/**
- * arXIV から未投稿の論文を1件検索
- * 既出を避けるため候補を複数取得し、投稿済みでない最新のものを返す
- */
-async function searchPapersFromArxiv() {
-  console.log('📚 arXIV から論文を検索中...\n');
-
-  // cs.CY (Computers and Society) に限定したうえで教育系キーワードで絞る
-  const keywords = ['education', 'educational', 'learning', 'teaching', 'classroom', 'student'];
-  const keywordQuery = keywords.map(k => `abs:"${k}"`).join(' OR ');
-  const query = `cat:cs.CY AND (${keywordQuery})`;
-  const url = `http://export.arxiv.org/api/query?search_query=${encodeURIComponent(query)}&start=0&max_results=30&sortBy=submittedDate&sortOrder=descending`;
-
-  // arXIV はレート制限が厳しいので待機しつつ再試行する
-  let response;
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    try {
-      response = await axios.get(url, {
-        timeout: 30000,
-        headers: { 'User-Agent': 'paper-to-zenn/1.0 (https://github.com/k518-2026/paper-to-zenn)' }
-      });
-      break;
-    } catch (error) {
-      const status = error.response && error.response.status;
-      if (attempt === 4) {
-        // 検索できないことは「新着なし」とは違う。握りつぶさず失敗させる
-        throw new Error(`arXIV への問い合わせに失敗しました（${status || error.message}）`);
-      }
-      const waitSec = attempt * 15;
-      console.log(`   ⏳ ${status || error.message} のため ${waitSec} 秒待機して再試行 (${attempt}/3)`);
-      await new Promise(r => setTimeout(r, waitSec * 1000));
-    }
-  }
-
-  const entries = response.data.match(/<entry>[\s\S]*?<\/entry>/g) || [];
-  if (entries.length === 0) {
-    throw new Error('arXIV の検索結果が空です（クエリが壊れている可能性があります）');
-  }
-
-  const postedIds = loadPostedIds();
-  console.log(`   候補 ${entries.length} 件 / 投稿済み ${postedIds.length} 件`);
-
-  for (const entry of entries) {
-    const paper = parseEntry(entry);
-    if (!paper) continue;
-    if (postedIds.includes(paper.arxivId)) continue;
-
-    console.log(`✅ 未投稿の論文を見つけました:`);
-    console.log(`   タイトル: ${paper.title}`);
-    console.log(`   arXIV ID: ${paper.arxivId}\n`);
-    return paper;
-  }
-
-  console.log('ℹ️ 候補はすべて投稿済みです。新しい論文が出るまで何もしません。\n');
-  return null;
-}
-
-/**
- * 要約を生成（落合陽一式フォーマット）
- */
-async function generateSummary(paper) {
-  try {
-    console.log('📝 要約を生成中...\n');
-
-    // Claude API で落合陽一式要約を生成
-    const ochiaiSummary = await generateOchiaiSummary(paper);
-
-    if (!ochiaiSummary) {
-      throw new Error('要約が空のため処理を中止します（空記事の投稿を防止）');
-    }
-
-    const summary = {
-      title: paper.title,
-      authors: paper.authors,
-      published: paper.published,
-      summary: ochiaiSummary,
-      summaryEnglish: paper.summary.substring(0, 300),
-      arxivUrl: paper.arxivUrl,
-      generatedAt: new Date().toISOString(),
-      method: 'ochihai-claude'
-    };
-
-    console.log(`✅ 要約を生成完了（落合陽一式フォーマット）\n`);
-    return summary;
-
-  } catch (error) {
-    console.error(`❌ 要約生成エラー: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * フルパイプライン実行
- */
 async function runFullPipeline() {
-  console.log('\n🚀 完全パイプライン実行\n');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  console.log('\n🚀 J-STAGE → 要約 → WordPress + Zenn\n');
+  line();
 
-  try {
-    // 1. 論文検索
-    console.log('【ステップ 1】 論文検索');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    const paper = await searchPapersFromArxiv();
-    if (!paper) {
-      // 重複投稿を出すより、何もしない方が良い
-      console.log('投稿対象がないため終了します\n');
-      return true;
+  // --- ステップ1: 論文を取る ---
+  console.log('【ステップ 1】論文検索（J-STAGE）');
+  line();
+
+  const themeOffset = Number(process.env.THEME_OFFSET || 0);
+  const paper = await findPaper(postedIds(loadPosted()), themeOffset);
+
+  if (!paper) {
+    console.log('投稿対象がないため終了します\n');
+    return;
+  }
+
+  console.log(`📄 ${paper.title}`);
+  console.log(`   ${paper.authors} / ${paper.journal} ${paper.year}\n`);
+
+  // --- ステップ2: 要約 ---
+  line();
+  console.log('【ステップ 2】要約生成');
+  line();
+
+  const { summary } = await generateOchiaiSummary(paper);
+
+  // --- ステップ3・4: 投稿 ---
+  // 片方が落ちても、もう片方は試す。どちらも落ちたら記録しない
+  const results = { zenn: null, wordpress: null };
+  const errors = [];
+
+  if (process.env.SKIP_ZENN !== 'true') {
+    line();
+    console.log('【ステップ 3】Zenn 記事の書き出し');
+    line();
+    try {
+      const r = await postToZenn(paper, summary);
+      results.zenn = r.slug;
+    } catch (error) {
+      errors.push(`Zenn: ${error.message}`);
+      console.error(`❌ Zenn 記事の作成に失敗: ${error.message}\n`);
     }
+  }
 
-    // 2. 要約生成
-    console.log('\n【ステップ 2】 要約生成');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    const summary = await generateSummary(paper);
-    if (!summary) {
-      return false;
+  if (process.env.SKIP_WORDPRESS !== 'true') {
+    line();
+    console.log('【ステップ 4】WordPress へ投稿');
+    line();
+    try {
+      results.wordpress = await postToWordPress(paper, summary);
+    } catch (error) {
+      errors.push(`WordPress: ${error.message}`);
+      console.error(`❌ WordPress への投稿に失敗: ${error.message}\n`);
     }
+  }
 
-    // 3. インフォグラフィック作成
-    console.log('\n【ステップ 3】 インフォグラフィック作成');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    const infographicPath = await createAndSaveInfographic(paper, summary.summary);
+  // --- ステップ5: 記録 ---
+  line();
+  console.log('【ステップ 5】記録');
+  line();
 
-    // 4. Obsidian に記録
-    console.log('\n【ステップ 4】 Obsidian に記録');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-    saveToObsidian(summary);
-    updateArticleIndex();
-    generateExecutionLog(summary);
-    updateStatistics();
+  if (!results.zenn && !results.wordpress) {
+    // どこにも出せていないので記録しない。次回この論文を再試行できる
+    throw new Error(`すべての投稿に失敗しました / ${errors.join(' / ')}`);
+  }
 
-    // ここで投稿済みとして記録する。以降の配信が一部失敗しても再実行で
-    // 全チャンネルに重複を撒かないことを優先する（失敗はログで確認する）
-    recordPosted(paper);
+  recordPosted(paper, {
+    zennSlug: results.zenn || '',
+    wordpress: results.wordpress ? '送信済み' : ''
+  });
 
-    // 5. Bluesky に投稿
-    if (process.env.AUTO_POST_TO_BLUESKY === 'true') {
-      console.log('\n【ステップ 5】 Bluesky に投稿');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      await postToBluesky(paper, summary.summary);
-    }
+  console.log('🎉 完了');
+  console.log(`   Zenn: ${results.zenn || '（スキップまたは失敗）'}`);
+  console.log(`   WordPress: ${results.wordpress ? '送信済み' : '（スキップまたは失敗）'}\n`);
 
-    // 6. Zenn に投稿
-    if (process.env.AUTO_POST_TO_ZENN === 'true') {
-      console.log('\n【ステップ 6】 Zenn に投稿');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      await postToZenn(paper, summary.summary, infographicPath);
-    }
-
-    // 7. はてなブログに投稿
-    if (process.env.AUTO_POST_TO_HATENA === 'true') {
-      console.log('\n【ステップ 7】 はてなブログに投稿');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-      // 画像は Zenn リポジトリにコミットされる PNG を raw URL で参照する
-      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
-      const owner = process.env.GITHUB_USERNAME || 'k518-2026';
-      const repo = process.env.GITHUB_REPO || 'paper-to-zenn';
-      const imageUrl = infographicPath
-        ? `https://raw.githubusercontent.com/${owner}/${repo}/main/images/${today}-infographic.png`
-        : undefined;
-
-      // HATENA_DRAFT=true で下書き投稿（公開せず動作確認したいとき用）
-      await postToHatena(paper, summary.summary, {
-        imageUrl,
-        draft: process.env.HATENA_DRAFT === 'true'
-      });
-    }
-
-    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('\n🎉 すべてのステップが完了しました！\n');
-
-    return true;
-
-  } catch (error) {
-    console.error(`\n❌ パイプラインエラー: ${error.message}\n`);
-    return false;
+  // 片方だけ失敗した場合も、CI に気づかせるため異常終了させる
+  if (errors.length) {
+    throw new Error(`一部の投稿に失敗しました / ${errors.join(' / ')}`);
   }
 }
 
-/**
- * インフォグラフィックを作成して保存
- */
-async function createAndSaveInfographic(paper, summary) {
-  try {
-    const svgContent = createInfographic(paper, summary);
-    if (!svgContent) {
-      return null;
-    }
-
-    const svgPath = saveSvgImage(svgContent);
-    saveInfographicMetadata(paper, svgPath);
-
-    // Zenn は SVG 非対応のため PNG に変換して返す
-    const pngPath = await convertSvgToPng(svgPath);
-    return pngPath || svgPath;
-
-  } catch (error) {
-    console.error(`⚠️ インフォグラフィック作成エラー: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * X 投稿ファイルを生成
- */
-async function postToXWithInfographic(paper, summary, imagePath) {
-  try {
-    console.log('📁 X 投稿テキストを生成中...\n');
-    return await generateXPostFile(paper, summary, imagePath);
-  } catch (error) {
-    console.error(`❌ X 投稿ファイル生成エラー: ${error.message}\n`);
-    return false;
-  }
-}
-
-/**
- * note 投稿手順を表示
- */
-function displayNotePostInstructions(summary) {
-  console.log('💡 note への手動投稿手順:\n');
-  console.log('1️⃣ https://note.com/my/notes/create にアクセス');
-  console.log('2️⃣ タイトル: 【論文要約】' + summary.title);
-  console.log('3️⃣ 本文に以下をコピペ:\n');
-  console.log(summary.summary);
-  console.log('\n4️⃣ 「公開」をクリック\n');
-}
-
-// メイン実行
 if (require.main === module) {
-  runFullPipeline()
-    .then(ok => {
-      // 失敗を CI に伝えるため終了コードを立てる
-      if (!ok) process.exit(1);
-    })
-    .catch(error => {
-      console.error('Fatal error:', error);
-      process.exit(1);
-    });
+  runFullPipeline().catch(error => {
+    console.error(`\n❌ パイプラインが失敗しました: ${error.message}\n`);
+    process.exit(1);
+  });
 }
 
 module.exports = { runFullPipeline };
