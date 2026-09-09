@@ -60,9 +60,14 @@ function toHtmlParagraphs(text) {
 function buildBody(paper, summary) {
   const parts = [];
 
+  // 英語タイトルの論文は和訳を主にし、原題も併記する
+  const displayTitle = paper.titleJa || paper.title;
+  const hasOriginal = paper.titleJa && paper.titleJa !== paper.title;
+
   parts.push('<h2>論文情報</h2>');
   parts.push('<ul>');
-  parts.push(`<li>タイトル: ${escapeHtml(paper.title)}</li>`);
+  parts.push(`<li>タイトル: ${escapeHtml(displayTitle)}</li>`);
+  if (hasOriginal) parts.push(`<li>原題: ${escapeHtml(paper.title)}</li>`);
   if (paper.authors) parts.push(`<li>著者: ${escapeHtml(paper.authors)}</li>`);
   if (paper.journal) parts.push(`<li>掲載誌: ${escapeHtml(paper.journal)}（${escapeHtml(paper.year)}年）</li>`);
   if (paper.doi) parts.push(`<li>DOI: ${escapeHtml(paper.doi)}</li>`);
@@ -108,7 +113,7 @@ async function postToWordPress(paper, summary) {
   const info = await transporter.sendMail({
     from: `"論文紹介Bot" <${user}>`,
     to,
-    subject: stripAstral(paper.title),
+    subject: stripAstral(paper.titleJa || paper.title),
     text: 'このメールはHTMLで作成されています。テキスト版は用意していません。',
     html: buildBody(paper, summary)
   });

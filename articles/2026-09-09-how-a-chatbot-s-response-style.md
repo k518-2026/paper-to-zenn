@@ -23,9 +23,9 @@ published: true
 
 ---
 
-## 落合陽一式論文要約
+## 論文の要約
 
-# 落合陽一式 論文要約
+# 論文の要約
 
 **タイトル:** How a Chatbot's Response Style Shapes a Classroom: A Multi-Agent Simulation of Students Consulting AI
 **著者:** Rin Tamai（2026-09-04, arXiv:2609.05018）

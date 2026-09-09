@@ -2,8 +2,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-const { findPaper } = require('./fetch-jstage');
-const { generateOchiaiSummary } = require('./generate-ochiahi-summary');
+const { findPaper, isJapanese } = require('./fetch-jstage');
+const { generateSummary, translateTitle } = require('./generate-summary');
 const { postToZenn } = require('./post-to-zenn');
 const { postToWordPress } = require('./post-to-wordpress');
 
@@ -11,7 +11,7 @@ const { postToWordPress } = require('./post-to-wordpress');
  * 国内論文（J-STAGE）→ 要約 → WordPress + Zenn
  *
  *   ステップ1  J-STAGE から未投稿の論文を1件取る（日本語要旨つき）
- *   ステップ2  Claude で落合陽一式に要約する
+ *   ステップ2  Claude で論文の要約を作る
  *   ステップ3  Zenn 記事を articles/ に書き出す
  *   ステップ4  WordPress へメール投稿する
  *   ステップ5  投稿済みとして posted.json に記録する
@@ -86,12 +86,23 @@ async function runFullPipeline() {
   console.log(`📄 ${paper.title}`);
   console.log(`   ${paper.authors} / ${paper.journal} ${paper.year}\n`);
 
+  // J-STAGE の論文はたいてい日本語タイトルを持つが、英語のみのものもある。
+  // その場合だけ和訳を作って併記する（日本語タイトルがあるなら訳す必要はない）
+  if (!paper.titleJa && !isJapanese(paper.title)) {
+    try {
+      paper.titleJa = await translateTitle(paper.title, paper.abstract);
+    } catch (error) {
+      // 和訳で本体を止めない。原題のまま進める
+      console.warn(`⚠️ タイトルの和訳に失敗したため原題のまま進みます: ${error.message}\n`);
+    }
+  }
+
   // --- ステップ2: 要約 ---
   line();
   console.log('【ステップ 2】要約生成');
   line();
 
-  const { summary } = await generateOchiaiSummary(paper);
+  const { summary } = await generateSummary(paper);
 
   // --- ステップ3・4: 投稿 ---
   // 片方が落ちても、もう片方は試す。どちらも落ちたら記録しない

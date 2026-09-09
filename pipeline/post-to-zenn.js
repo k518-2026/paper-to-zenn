@@ -63,21 +63,30 @@ function buildTitle(rawTitle) {
 }
 
 function buildMarkdown(paper, summary) {
-  const topics = ['教育', '論文要約', '教育心理学', 'jstage'];
+  // Zenn のトピック。その日のテーマを混ぜて内容と揃える（最大5つ）
+  const topics = ['論文要約', '教育'];
+  if (paper.theme && !topics.includes(paper.theme)) topics.push(paper.theme);
+
+  // 英語タイトルの論文は和訳を主にし、原題も併記する
+  const displayTitle = paper.titleJa || paper.title;
+  const hasOriginal = paper.titleJa && paper.titleJa !== paper.title;
 
   const info = [
     '| 項目 | 内容 |',
     '|------|------|',
-    `| **タイトル** | ${paper.title} |`,
+    `| **タイトル** | ${displayTitle} |`
+  ];
+  if (hasOriginal) info.push(`| **原題** | ${paper.title} |`);
+  info.push(
     `| **著者** | ${paper.authors} |`,
     `| **掲載誌** | ${paper.journal}${paper.volume ? ` ${paper.volume}(${paper.number || 0})` : ''} |`,
     `| **発行年** | ${paper.year} |`
-  ];
+  );
   if (paper.doi) info.push(`| **DOI** | ${paper.doi} |`);
   info.push(`| **J-STAGE** | [記事ページ](${paper.url}) |`);
 
   return `---
-title: "${buildTitle(paper.title)}"
+title: "${buildTitle(displayTitle)}"
 emoji: "📚"
 type: "idea"
 topics: ${JSON.stringify(topics)}
@@ -96,7 +105,7 @@ ${summary}
 
 ## 元論文
 
-- [${paper.title}](${paper.url})（J-STAGE）
+- [${displayTitle}](${paper.url})（J-STAGE）
 
 ---
 

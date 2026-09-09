@@ -25,19 +25,34 @@ const UA = 'PaperToZenn/2.0 (+https://github.com/k518-2026/paper-to-zenn)';
 // 記事ページを連続で叩かないための間隔
 const PAGE_INTERVAL_MS = 1500;
 
-/** 日替わりで回すテーマ。abst 検索に使う日本語キーワード */
+/**
+ * 日替わりで回すテーマ。abst 検索に使う日本語キーワード。
+ *
+ * 「データ分析 / 統計学 / 小学校プログラミング教育」の3ジャンルをカバーする。
+ * 統計解析（4951件）は医学・臨床系が中心になるため外してある。
+ * 括弧内は abst 検索の実測ヒット数（2026-09時点）。0件のキーワードを混ぜると
+ * その日だけ何も投稿されないので、件数を確かめたものだけを並べている。
+ */
 const THEMES = [
-  { id: 'edu-psychology', label: '教育心理学', keyword: '教育心理' },
-  { id: 'cooperative',    label: '協同学習',   keyword: '協同学習' },
-  { id: 'active',         label: '主体的な学び', keyword: 'アクティブラーニング' },
-  { id: 'motivation',     label: '学習意欲',   keyword: '学習意欲' },
-  { id: 'ict',            label: 'ICT活用',    keyword: 'ICT 授業' },
-  { id: 'lesson-study',   label: '授業研究',   keyword: '授業研究' },
-  { id: 'assessment',     label: '学習評価',   keyword: '学習評価' },
-  { id: 'special-needs',  label: '特別支援教育', keyword: '特別支援教育' },
-  { id: 'teacher',        label: '教師教育',   keyword: '教員養成' },
-  { id: 'literacy',       label: '読解と学力', keyword: '読解力' }
+  // --- データ分析 ---
+  { id: 'data-science',   label: 'データサイエンス', keyword: 'データサイエンス' },   // 287件・直近5年が45/50
+  { id: 'data-analysis',  label: 'データ分析',       keyword: 'データ分析' },         // 1198件
+  { id: 'data-use',       label: 'データ活用',       keyword: 'データ活用' },         // 255件
+
+  // --- 統計学 ---
+  { id: 'stat-education', label: '統計教育',         keyword: '統計教育' },           // 123件
+  { id: 'stat-inference', label: '統計的推測',       keyword: '統計的推測' },         // 36件
+
+  // --- 小学校プログラミング教育 ---
+  { id: 'programming-edu', label: 'プログラミング教育', keyword: 'プログラミング教育' },  // 382件
+  { id: 'programming-es',  label: '小学校プログラミング', keyword: '小学校 プログラミング' }, // 251件
+  { id: 'computational',   label: 'プログラミング的思考', keyword: 'プログラミング的思考' }   // 105件
 ];
+
+/** 日本語（ひらがな・カタカナ・漢字）を含むか。タイトルの和訳が要るかの判定に使う */
+function isJapanese(text) {
+  return /[぀-ゟ゠-ヿ一-鿿]/.test(String(text || ''));
+}
 
 const MIN_ABSTRACT_LEN = 200;   // これより短い要旨は要約に値しない
 const MAX_ABSTRACT_LEN = 4000;  // 要約モデルに渡す前の上限
@@ -111,6 +126,7 @@ function parseEntry(entry) {
 
   return {
     title: title.ja || title.en,
+    titleJa: title.ja,      // J-Stage に日本語タイトルが無い論文もある
     titleEn: title.en,
     authors: authors.filter(Boolean).join(', ') || '著者情報なし',
     journal: journal.ja || journal.en,
@@ -210,4 +226,4 @@ async function findPaper(postedIds, themeOffset = 0) {
   return null;
 }
 
-module.exports = { findPaper, searchCandidates, fetchAbstract, pickTheme, THEMES };
+module.exports = { findPaper, searchCandidates, fetchAbstract, pickTheme, isJapanese, THEMES };

@@ -23,9 +23,9 @@ published: true
 
 ---
 
-## 落合陽一式論文要約
+## 論文の要約
 
-# 落合陽一式サマリ
+# 論文の要約
 
 **論文名**: An Empirical Study on Learning Paths and Gender Dynamics in Scrum Master Roles
 **著者**: Manuela Petrescu（SEAA 2025 / LNCS vol.16083, Springer）
