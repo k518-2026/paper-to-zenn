@@ -1,6 +1,17 @@
 {
   "posted": [
     {
+      "id": "10.24603/tfu.19.0_31",
+      "doi": "10.24603/tfu.19.0_31",
+      "title": "初等英語教育における協同学習",
+      "source": "J-STAGE",
+      "theme": "協同学習",
+      "url": "https://www.jstage.jst.go.jp/article/tfu/19/0/19_31/_article/-char/ja/",
+      "postedAt": "2026-09-09",
+      "zennSlug": "2026-09-09-jstage-19-0-31",
+      "wordpress": "送信済み"
+    },
+    {
       "arxivId": "2609.05018",
       "title": "How a Chatbot's Response Style Shapes a Classroom: A Multi-Agent Simulation of Students Consulting AI",
       "postedAt": "2026-09-09"
