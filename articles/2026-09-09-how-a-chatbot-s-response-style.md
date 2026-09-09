@@ -1,5 +1,5 @@
 ---
-title: "【論文要約】How a Chatbot's Response Style Shapes a Classroom: A Multi-Agent Simulation of Students Consulting AI"
+title: "【論文要約】How a Chatbot's Response Style Shapes a Classroom: A Multi-Agen…"
 emoji: "📚"
 type: "idea"
 topics: ["教育", "ICT", "研究", "論文要約"]

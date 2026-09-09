@@ -39,9 +39,27 @@ function buildSlug(paper, today) {
   return slug.length >= 12 ? slug : `${slug}-paper`.substring(0, 50);
 }
 
-/** front matter の title は " を含められないので全角に寄せる */
+const TITLE_PREFIX = '【論文要約】';
+
+/**
+ * Zenn のタイトル上限は70文字。
+ * 1本でも超えるとデプロイ全体が中断し、他の記事も保存されない
+ * （実際に arXiv 時代の記事84文字・107文字で止まった）。
+ * front matter の title は " を含められないので全角に寄せる。
+ */
+const ZENN_TITLE_MAX = 70;
+
 function safeTitle(title) {
   return String(title).replace(/"/g, '”').replace(/\r?\n/g, ' ').trim();
+}
+
+function buildTitle(rawTitle) {
+  const body = safeTitle(rawTitle);
+  const full = TITLE_PREFIX + body;
+  if (Array.from(full).length <= ZENN_TITLE_MAX) return full;
+
+  const room = ZENN_TITLE_MAX - Array.from(TITLE_PREFIX).length - 1; // … の分を残す
+  return TITLE_PREFIX + Array.from(body).slice(0, room).join('').replace(/[\s、。,.:：]+$/, '') + '…';
 }
 
 function buildMarkdown(paper, summary) {
@@ -59,7 +77,7 @@ function buildMarkdown(paper, summary) {
   info.push(`| **J-STAGE** | [記事ページ](${paper.url}) |`);
 
   return `---
-title: "【論文要約】${safeTitle(paper.title)}"
+title: "${buildTitle(paper.title)}"
 emoji: "📚"
 type: "idea"
 topics: ${JSON.stringify(topics)}
@@ -107,4 +125,4 @@ async function postToZenn(paper, summary) {
   return { slug, file };
 }
 
-module.exports = { postToZenn, buildMarkdown, buildSlug };
+module.exports = { postToZenn, buildMarkdown, buildSlug, buildTitle };

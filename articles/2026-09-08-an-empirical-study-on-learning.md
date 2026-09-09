@@ -1,5 +1,5 @@
 ---
-title: "【論文要約】An Empirical Study on Learning Paths and Gender Dynamics in Scrum Master Roles"
+title: "【論文要約】An Empirical Study on Learning Paths and Gender Dynamics in Scr…"
 emoji: "📚"
 type: "idea"
 topics: ["教育", "ICT", "研究", "論文要約"]
