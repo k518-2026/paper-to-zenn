@@ -62,8 +62,10 @@ module.exports = {
 
   // --- Gemini ---
   // 混雑（503）や1日の上限（429）で順に切り替える。名前は models.list で確認したもの
-  geminiModels: ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'],
-  // 4モデルとも 503（混雑）で落ちることがある（2026-09-23 の初回実行）。
+  // 先に品質の高いものを試し、全部混んでいたら軽いものに回す。
+  // 名前が違えば 404 が返り、次のモデルに移るだけ（実害はない）
+  geminiModels: ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'],
+  // 全モデルが 503（混雑）で落ちることがある（2026-09-23 の初回実行では当時の4モデルすべて）。
   // 混雑は時間をおくと収まるので、一巡して駄目なら間を置いて巡り直す
   geminiRounds: 4,
   geminiRoundWaitMs: 90 * 1000,
