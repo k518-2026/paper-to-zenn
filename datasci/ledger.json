@@ -1,0 +1,17 @@
+[
+  {
+    "id": "W4406170795",
+    "doi": "10.1038/s41586-024-08328-6",
+    "title": "Accurate predictions on small data with a tabular foundation model",
+    "venue": "Nature",
+    "year": "2025",
+    "citedBy": 924,
+    "status": "記事にした",
+    "date": "2026-09-23",
+    "slug": "datasci-w4406170795",
+    "titleJa": "表形式基盤モデルによる小規模データ上の高精度予測",
+    "url": "https://zenn.dev/k518/articles/datasci-w4406170795",
+    "model": "gemini-3.8-flash",
+    "note": "用語の意味を確認できなかったためリンクなし: The operation was aborted due to timeout"
+  }
+]
