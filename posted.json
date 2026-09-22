@@ -1,6 +1,17 @@
 {
   "posted": [
     {
+      "id": "10.11517/pjsai.JSAI2025.0_3I6GS1104",
+      "doi": "10.11517/pjsai.JSAI2025.0_3I6GS1104",
+      "title": "小説の文体の性差を題材としたデータサイエンスセミナー事例",
+      "source": "J-STAGE",
+      "theme": "データサイエンス",
+      "url": "https://www.jstage.jst.go.jp/article/pjsai/JSAI2025/0/JSAI2025_3I6GS1104/_article/-char/ja/",
+      "postedAt": "2026-09-23",
+      "zennSlug": "2026-09-23-jstage-jsai2025-0-3i6gs1104",
+      "wordpress": ""
+    },
+    {
       "id": "10.24489/jjphe.e10034",
       "doi": "10.24489/jjphe.e10034",
       "title": "医歯薬学分野における数理・データサイエンス・AI教育の実装とコアカリキュラムへの対応：東京科学大学の取組と医療系標準教材の開発",
