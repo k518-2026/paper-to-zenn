@@ -56,13 +56,17 @@ module.exports = {
   sectionMaxChars: 300,
 
   // --- 本文 PDF ---
-  pdfMaxBytes: 12 * 1024 * 1024,
+  pdfMaxBytes: 40 * 1024 * 1024,   // 本文は pdftotext で文字にするので、大きい PDF でも困らない
   pdfTextMinChars: 3000,      // これより短ければ本文が取れていない（画像だけの PDF など）
   pdfTextMaxChars: 150000,
 
   // --- Gemini ---
   // 混雑（503）や1日の上限（429）で順に切り替える。名前は models.list で確認したもの
   geminiModels: ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'],
+  // 4モデルとも 503（混雑）で落ちることがある（2026-09-23 の初回実行）。
+  // 混雑は時間をおくと収まるので、一巡して駄目なら間を置いて巡り直す
+  geminiRounds: 4,
+  geminiRoundWaitMs: 90 * 1000,
   temperature: 0.4,
   maxOutputTokens: 16384,
 

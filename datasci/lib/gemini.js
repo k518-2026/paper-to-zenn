@@ -9,7 +9,7 @@
  *
  * 字数はモデルに守らせきれないので、外れた観点だけ本文なしの軽い問い合わせで書き直させる。
  */
-const { fetchRetry, httpError, requireEnv } = require('./http');
+const { fetchRetry, httpError, requireEnv, sleep } = require('./http');
 const config = require('../config');
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -95,17 +95,15 @@ function buildPrompt(paper, readings) {
 /** モデルを順に試す。503（混雑）と429（上限）と404（名前違い）で切り替える */
 async function generateJson(parts, schema) {
   const key = requireEnv('GEMINI_API_KEY');
-  const models = config.geminiModels;
   let res = null;
 
-  for (let i = 0; i < models.length; i++) {
-    lastModel = models[i];
-    res = await callModel(key, models[i], parts, schema);
+  for (let round = 1; round <= config.geminiRounds; round++) {
+    res = await tryModels(key, parts, schema);
     if (res.ok) break;
-    const quota = res.status === 429 && /exceeded your current quota/i.test(await res.clone().text());
-    if (quota) console.warn(`  ${models[i]} は1日の上限に達しています。`);
-    if (![503, 429, 404].includes(res.status) || i === models.length - 1) break;
-    console.warn(`  ${models[i]} が使えないため ${models[i + 1]} に切り替えます（${res.status}）`);
+    // 混雑はしばらくすると収まる。1日1本の仕事なので待てる
+    if (!isBusy(res) || round === config.geminiRounds) break;
+    console.warn(`  全モデルが混雑しています。${Math.round(config.geminiRoundWaitMs / 1000)}秒おいて巡り直します（${round}/${config.geminiRounds}）`);
+    await sleep(config.geminiRoundWaitMs);
   }
 
   if (!res.ok) throw await httpError('Gemini APIエラー', res);
@@ -118,6 +116,34 @@ async function generateJson(parts, schema) {
   } catch (e) {
     throw new Error('Gemini の応答が JSON ではありません: ' + text.slice(0, 300));
   }
+}
+
+function isBusy(res) {
+  return res.status === 503 || res.status === 429 || res.status >= 500;
+}
+
+/** モデルを順に試す。使えたらその応答、全部駄目なら最後の応答を返す */
+async function tryModels(key, parts, schema) {
+  const models = config.geminiModels;
+  let res = null;
+
+  for (let i = 0; i < models.length; i++) {
+    lastModel = models[i];
+    res = await callModel(key, models[i], parts, schema);
+
+    // スキーマを受け付けないモデル・条件では 400 が返る。スキーマなしでもう一度
+    // （JSON で返す指定は残る。GAS 版で実際にこれに助けられていた）
+    if (res.status === 400 && schema) {
+      console.warn('  400 が返ったため、スキーマなしで試します: ' + (await res.clone().text()).slice(0, 200));
+      res = await callModel(key, models[i], parts, null);
+    }
+    if (res.ok) break;
+    const quota = res.status === 429 && /exceeded your current quota/i.test(await res.clone().text());
+    if (quota) console.warn(`  ${models[i]} は1日の上限に達しています。`);
+    if (![503, 429, 404].includes(res.status) || i === models.length - 1) break;
+    console.warn(`  ${models[i]} が使えないため ${models[i + 1]} に切り替えます（${res.status}）`);
+  }
+  return res;
 }
 
 function callModel(key, model, parts, schema) {

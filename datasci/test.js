@@ -93,8 +93,11 @@ function makeFetch(state) {
       const payload = JSON.parse(opts.body);
       const parts = payload.contents[0].parts;
       const text = parts.map((p) => p.text || '').join('\n');
-      state.gemini.push({ hasBody: text.includes('【論文本文】'), text });
+      const hasSchema = !!(payload.generationConfig || {}).responseSchema;
+      state.gemini.push({ hasBody: text.includes('【論文本文】'), text, hasSchema });
       if (state.gemini503 > 0) { state.gemini503--; return jsonResponse('busy', 503); }
+      // スキーマを受け付けない場合を模す（400）。スキーマなしなら通る
+      if (state.gemini400 > 0 && hasSchema) { state.gemini400--; return jsonResponse('Invalid JSON payload: responseSchema', 400); }
       if (text.includes('【用語の意味の確認】')) {
         state.senseChecked = true;
         return geminiReply({ results: [{ number: 1, fits: true }, { number: 2, fits: false }] });
@@ -117,7 +120,7 @@ function makeFetch(state) {
 const geminiReply = (obj) => jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] });
 
 function newState() {
-  return { calls: [], gemini: [], gemini503: 0, senseChecked: false, filter: '' };
+  return { calls: [], gemini: [], gemini503: 0, gemini400: 0, senseChecked: false, filter: '' };
 }
 
 // ============================================================
@@ -182,11 +185,20 @@ async function flowTest() {
   run.deps.extractText = () => 'Abstract\nWe study shrinkage. ' + 'Method and results. '.repeat(400) + '\nReferences\nStein (1956).';
   run.deps.now = () => new Date('2026-09-23T07:00:00+09:00');
 
+  config.geminiRoundWaitMs = 10;             // 待ち時間はテストでは詰める
   state.gemini503 = 1;                       // 1回目は混雑。切り替えて成功する
-  const made = await run.main();
+  state.gemini400 = 1;                       // 次はスキーマを受け付けない。スキーマなしで通す
+  // 例外で落ちるとテストが黙って終わるので、必ず受けてから判定する
+  let made = null;
+  let threw = null;
+  try { made = await run.main(); } catch (e) { threw = e; }
+  check('記事作成が例外で終わらない', !threw, threw && threw.message);
 
   check('記事を1本だけ作る', made && made.path === 'articles/datasci-w1001.md', made && made.path);
   check('混雑（503）でもモデルを切り替えて書き上げる', state.gemini.length >= 2);
+  check('スキーマで 400 が返ったらスキーマなしで出し直す',
+        state.gemini.some((c) => c.hasSchema) && state.gemini.some((c) => !c.hasSchema),
+        JSON.stringify(state.gemini.map((c) => c.hasSchema)));
 
   const file = path.join(tmp, 'articles/datasci-w1001.md');
   const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
@@ -218,6 +230,19 @@ async function flowTest() {
   check('同じ日の2回目は何もしない（1日1本）',
         again === null && state.gemini.length === before &&
         !fs.existsSync(path.join(tmp, 'articles/datasci-w1004.md')), state.gemini.length - before);
+  // 全モデルが混雑しても、間を置いて巡り直す（2026-09-23 の初回実行で4モデルとも 503 だった）
+  {
+    const before = state.gemini.length;
+    // 1巡目（4モデル × 2回）は全滅。2巡目で収まる
+    state.gemini503 = config.geminiModels.length * 2;
+    let out = null;
+    let busyThrew = null;
+    try { out = await gemini.generateJson([{ text: '【論文本文】ためし' }], null); } catch (e) { busyThrew = e; }
+    check('全モデルが混雑しても、間を置いて巡り直して書ける',
+          !busyThrew && out && out.relevant === true && state.gemini.length - before > config.geminiModels.length,
+          (busyThrew && busyThrew.message.slice(0, 80)) || (state.gemini.length - before) + ' 回呼んだ');
+  }
+
   // --force なら作る（手で動かすとき用）
   run.options.force = true;
   const forced = await run.main();
