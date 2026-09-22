@@ -69,6 +69,14 @@ module.exports = {
   // 混雑は時間をおくと収まるので、一巡して駄目なら間を置いて巡り直す
   geminiRounds: 4,
   geminiRoundWaitMs: 90 * 1000,
+
+  // Gemini が全部混雑したときだけ使う逃げ道（従量課金。1記事 10 円前後）。
+  // ANTHROPIC_API_KEY が無ければ使わず、これまでどおり失敗として終わる
+  claude: {
+    model: 'claude-sonnet-5',
+    maxTokens: 8000,
+    effort: 'medium'    // 要約と翻訳なので、思考は中くらいで足りる
+  },
   temperature: 0.4,
   maxOutputTokens: 16384,
 

@@ -1,0 +1,13 @@
+{
+  "name": "datasci-to-zenn",
+  "version": "1.0.0",
+  "private": true,
+  "description": "データ分析の最新手法を1日1本 Zenn へ（GitHub Actions で実行）",
+  "scripts": {
+    "test": "node test.js",
+    "start": "node run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0"
+  }
+}

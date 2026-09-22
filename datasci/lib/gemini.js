@@ -101,7 +101,17 @@ async function generateJson(parts, schema) {
     res = await tryModels(key, parts, schema);
     if (res.ok) break;
     // 混雑はしばらくすると収まる。1日1本の仕事なので待てる
-    if (!isBusy(res) || round === config.geminiRounds) break;
+    if (!isBusy(res)) break;
+    if (round === config.geminiRounds) {
+      // Gemini が最後まで混雑していたら Claude に回す（鍵があるときだけ）
+      const claude = require('./claude');
+      if (claude.available()) {
+        console.warn('  Gemini が混雑したままなので ' + config.claude.model + ' で書きます。');
+        lastModel = config.claude.model;
+        return await claude.generateJson(parts);
+      }
+      break;
+    }
     console.warn(`  全モデルが混雑しています。${Math.round(config.geminiRoundWaitMs / 1000)}秒おいて巡り直します（${round}/${config.geminiRounds}）`);
     await sleep(config.geminiRoundWaitMs);
   }

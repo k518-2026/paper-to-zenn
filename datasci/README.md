@@ -40,6 +40,7 @@ node datasci/run.js --force     # その日すでに作っていても、もう1
 |---|---|---|
 | `GEMINI_API_KEY` | 必須 | Google AI Studio のキー |
 | `OPENALEX_API_KEY` | ほぼ必須 | https://openalex.org/settings/api で発行（無料・1日 $1 分）。無いと共有 IP の枠（1日 $0.10）を取り合ってすぐ 429 になる |
+| `ANTHROPIC_API_KEY` | 任意 | **Gemini の全モデルが混雑したときだけ** Claude Sonnet 5 で書く（1記事 10 円前後）。無ければその日は記事なしで終わる |
 
 ## 決めごと・注意点
 

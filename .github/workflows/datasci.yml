@@ -41,9 +41,12 @@ jobs:
         with:
           node-version: '20'
 
-      # 外部パッケージは使っていない。通信を偽物に差し替えた通しテスト
+      # Gemini が全部混雑したときだけ使う Claude の SDK（テストは偽物なので入れる前に走る）
       - name: 自己検査
         run: node datasci/test.js
+
+      - name: 依存パッケージを入れる
+        run: npm install --prefix datasci --no-audit --no-fund
 
       - name: pdftotext（poppler）を入れる
         run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
@@ -52,6 +55,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # Gemini が全部混雑したときだけ使う
         run: |
           args=""
           [ "${{ inputs.dry_run }}" = "true" ] && args="$args --dry-run"

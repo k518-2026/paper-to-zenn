@@ -243,6 +243,40 @@ async function flowTest() {
           (busyThrew && busyThrew.message.slice(0, 80)) || (state.gemini.length - before) + ' 回呼んだ');
   }
 
+  // Gemini が最後まで混雑していたら Claude に回す（鍵があるときだけ）
+  {
+    const claudeLib = require('./lib/claude');
+    const realCreate = claudeLib.createClient;
+    const rounds = config.geminiRounds;
+    config.geminiRounds = 1;                       // すぐ最後の巡回にする
+    state.gemini503 = 99;
+
+    let asked = null;
+    claudeLib.createClient = () => ({ messages: { create: async (req) => {
+      asked = req;
+      return { stop_reason: 'end_turn', content: [{ type: 'text', text: '{"relevant":true,"来た":"Claude"}' }] };
+    } } });
+
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    let out = null;
+    let claudeThrew = null;
+    try { out = await gemini.generateJson([{ text: '【論文本文】ためし' }], null); } catch (e) { claudeThrew = e; }
+    check('Gemini が混雑したままなら Claude に回す',
+          !claudeThrew && out && out['来た'] === 'Claude' && asked && asked.model === 'claude-sonnet-5' &&
+          asked.output_config.effort === 'medium' && gemini.usedModel() === 'claude-sonnet-5',
+          (claudeThrew && claudeThrew.message.slice(0, 80)) || JSON.stringify(asked && asked.model));
+
+    delete process.env.ANTHROPIC_API_KEY;
+    let noKeyThrew = null;
+    try { await gemini.generateJson([{ text: '【論文本文】ためし' }], null); } catch (e) { noKeyThrew = e; }
+    check('鍵が無ければ Claude に回さず、混雑として終わる',
+          !!noKeyThrew && /Gemini APIエラー\(503\)/.test(noKeyThrew.message), noKeyThrew && noKeyThrew.message.slice(0, 60));
+
+    claudeLib.createClient = realCreate;
+    config.geminiRounds = rounds;
+    state.gemini503 = 0;
+  }
+
   // --force なら作る（手で動かすとき用）
   run.options.force = true;
   const forced = await run.main();
