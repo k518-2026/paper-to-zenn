@@ -10,7 +10,12 @@ Zenn は GitHub 連携でこのリポジトリを見ており、`articles/` に 
 
 | ワークフロー | 内容 | 実行 |
 |---|---|---|
-| [DataSci to Zenn](.github/workflows/datasci.yml) | 統計・機械学習の**手法そのもの**を扱う直近2年の論文を、被引用数の多い順に1本選んで紹介記事にする | 毎日 07:00（日本時間）+ 手動 |
+| [DataSci to Zenn](.github/workflows/datasci.yml) | 統計・機械学習の**手法そのもの**を扱う直近2年の論文を、被引用数の多い順に1本選んで**下書き**の記事にする。同じ内容を WordPress にも送る | 毎日 07:00（日本時間）+ 手動 |
+| [Zenn に公開する](.github/workflows/zenn-publish.yml) | 下書きを読んで納得したら、公開に切り替える | 手動 |
+| [WordPress だけ試す](.github/workflows/wp-test.yml) | 記事を作り直さずに WordPress へ送る（既定は下書き） | 手動 |
+
+**記事は下書きとして作られ、公開は人が判断する。** Zenn は公開前に人が内容を検証することを求めており、
+機械が書いた文章をそのまま投稿し続けると規約のスパム条項に触れるため（詳細は `datasci/README.md`）。
 
 処理の流れと設定は [`datasci/README.md`](datasci/README.md) にあります。
 
@@ -18,7 +23,7 @@ Zenn は GitHub 連携でこのリポジトリを見ており、`articles/` に 
 OpenAlex で候補を検索 → PDF を取得 → pdftotext で本文を文字にする
   → Gemini が6観点（問題設定／既存手法との違い／手法の中身／検証／使いどころ／次に読む論文）で執筆
   → 日本語版 Wikipedia で専門用語の項目を確認してリンク
-  → articles/datasci-<OpenAlexID>.md を書いてコミット
+  → articles/datasci-<OpenAlexID>.md を下書きとして書いてコミット（公開は人が判断）
 ```
 
 **1日1本だけ**作ります。Zenn はこのアカウントで新規公開が1日1本前後で頭打ちになるため、

@@ -19,7 +19,7 @@ OpenAlex   参考文献と被引用論文を「次に読む論文」の候補に
 Gemini     6観点・和訳タイトル・専門用語・紹介文を JSON で。テーマ外なら relevant=false で飛ばす
            字数が外れた観点だけ、本文なしの軽い問い合わせで書き直させる
 Wikipedia  用語の項目が実在するか、意味が記事と合うかを確かめる（合わなければ張らない）
-Markdown   articles/datasci-<OpenAlexID>.md を書く
+Markdown   articles/datasci-<OpenAlexID>.md を**下書き**（published: false）として書く
 WordPress  同じ記事を HTML にしてメール投稿（設定があるときだけ。失敗しても Zenn の記事は残す）
 台帳       datasci/ledger.json に記録（記事にしなかった論文も残し、二度と取りに行かない）
 ```
@@ -42,6 +42,22 @@ node datasci/send-wp.js --publish datasci-w123   # 記事を指定して公開�
 GitHub では「WordPress だけ試す」ワークフロー（`wp-test.yml`）を手動実行しても同じことができる。
 
 `--live` と本番の実行には `pdftotext`（poppler）が要る。Actions では apt で入れている。
+
+## 公開は人が決める（大事）
+
+記事は**下書き**として作られる。Zenn は「人が主体となって情報を発信する場」を掲げ、
+**公開前に人が内容を検証すること**を求めている。機械が書いた文章をそのまま投稿し続けると、
+利用規約のスパム条項（機械により自動生成された文章の投稿）に触れ、アカウント凍結の対象になりうる
+（2026-03-10 のお知らせ「AIによるコンテンツ執筆に関するZennの方針について」）。
+
+下書きは Zenn のダッシュボードで読める。目を通し、必要なら自分の見解を書き足してから公開する。
+
+- GitHub から: Actions →「Zenn に公開する」→ slug を入れて実行（空ならいちばん新しい下書き）
+- 手元から: `node datasci/publish.js --list` で一覧、`node datasci/publish.js <slug>` で公開にする
+
+**投稿数の上限**もある（記事は直近24時間の投稿数で判定、上限のロジックは非公開）。
+上限に達すると Zenn のデプロイ画面に「投稿数の上限に達したためデプロイされませんでした」と出る。
+時間をおけば出せるようになる。**上限を回避する仕組み（空コミットの連打など）は作らない。**
 
 ## Secrets（リポジトリの Settings → Secrets and variables → Actions）
 

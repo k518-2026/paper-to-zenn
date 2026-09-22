@@ -1,0 +1,55 @@
+name: Zenn に公開する
+
+# 下書きの記事を「公開」にする。**人が中身を見てから実行する**ためのワークフロー。
+#
+# 記事は毎朝の DataSci to Zenn が下書き（published: false）として作る。
+# Zenn は「人が主体となって情報を発信する場」を掲げ、公開前に人が内容を検証することを
+# 求めている（2026-03-10 のお知らせ）。目を通してから、ここで公開にする。
+
+on:
+  workflow_dispatch:
+    inputs:
+      article:
+        description: '記事の slug（空ならいちばん新しい下書き）'
+        type: string
+        default: ''
+      list_only:
+        description: '公開せず、下書きの一覧を出すだけ'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 下書きを公開にする
+        run: |
+          if [ "${{ inputs.list_only }}" = "true" ]; then
+            node datasci/publish.js --list
+          else
+            node datasci/publish.js ${{ inputs.article }}
+          fi
+
+      - name: コミットして push
+        if: ${{ inputs.list_only != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add articles
+          if git diff --cached --quiet; then
+            echo "変更はありません。"
+          else
+            slug=$(git diff --cached --name-only -- articles | head -1 | xargs -r basename | sed 's/\.md$//')
+            git commit -m "Publish ${slug:-article} on Zenn"
+            git push
+          fi

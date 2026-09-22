@@ -80,7 +80,7 @@ function buildMarkdown(paper, article, asOf) {
     'emoji: "' + config.zenn.emoji + '"',
     'type: "' + config.zenn.type + '"',
     'topics: [' + config.zenn.topics.map((t) => '"' + t + '"').join(',') + ']',
-    'published: true',
+    'published: ' + (config.zenn.published ? 'true' : 'false'),
     '---',
     ''
   ];

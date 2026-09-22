@@ -176,6 +176,24 @@ function unitTests() {
           render.markdownToHtml(md.replace(/\n/g, '\r\n'), wp) === html);
   })();
 
+  // 記事は下書きとして作る（公開は人が決める。Zenn の方針）
+  (function () {
+    const paper = { title: 'T', authors: ['A'], venue: 'J', volume: '', issue: '', pages: '', year: '2025', citedBy: 1, url: 'https://doi.org/x' };
+    const article = { titleJa: 'ためし', sections: Object.fromEntries(config.sections.map((s) => [s.key, '本文'])), links: [], nextReads: [] };
+    const md = render.buildMarkdown(paper, article, '2026-09-23');
+    check('記事は下書き（published: false）として作る', /\npublished: false\n/.test(md), md.slice(0, 160));
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'datasci-pub-'));
+    const file = path.join(tmp, 'a.md');
+    fs.writeFileSync(file, md, 'utf8');
+    const publishLib = require('./publish');
+    check('下書きだと分かる', publishLib.isDraft(md) && !publishLib.isDraft(md.replace('published: false', 'published: true')));
+    check('公開にすると published: true になる',
+          publishLib.publish(file) && /\npublished: true\n/.test(fs.readFileSync(file, 'utf8')));
+    check('すでに公開の記事は変えない', publishLib.publish(file) === false);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  })();
+
   check('slug の形式', /^[a-z0-9_-]{12,50}$/.test(render.zennSlug('W2597900308')), render.zennSlug('W2597900308'));
   check('タイトルは70字以内', Array.from(render.zennTitle('あ'.repeat(100))).length <= 70);
 
@@ -244,7 +262,8 @@ async function flowTest() {
   const file = path.join(tmp, 'articles/datasci-w1001.md');
   const md = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   check('記事をファイルに書く', md.length > 500, md.length);
-  check('フロントマター', /^---\ntitle: "【論文紹介】「縮小推定」の新しい当てはめ方"\nemoji: "📈"\ntype: "idea"\ntopics: \["論文紹介","データ分析","機械学習","統計"\]\npublished: true\n---/.test(md), md.slice(0, 200));
+  // 下書きとして作る（公開は人が決める）
+  check('フロントマター', /^---\ntitle: "【論文紹介】「縮小推定」の新しい当てはめ方"\nemoji: "📈"\ntype: "idea"\ntopics: \["論文紹介","データ分析","機械学習","統計"\]\npublished: false\n---/.test(md), md.slice(0, 200));
   check('技術寄りの見出しが並ぶ', md.includes('## (3) 手法の中身：仕組みと計算の要点') && md.includes('## (6) 次に読む論文'));
   check('書誌と被引用数と論文リンク', md.includes('[Alice Adams, Bob Brown, Carol Clark, et al.，"Study number 1 on shrinkage estimators，"') &&
         md.includes('](https://doi.org/10.1000/test.1)') && md.includes('被引用数: 499（OpenAlex, 2026-09-23 時点）'), md.slice(200, 700));
