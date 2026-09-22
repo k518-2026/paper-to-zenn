@@ -233,7 +233,9 @@ function markdownToHtml(markdown, wp) {
       return;
     }
     if (/^- /.test(text)) {
-      text.split(/\n(?=- )/).forEach((item) => list.push(inline(item.replace(/^- /, '').replace(/\n\s+/g, '<br />'))));
+      // **タグを足してからエスケープしない**。先に inline()（逃がし＋リンク＋行末の <br />）を通し、
+      // 残った改行だけを落とす。逆にすると <br /> が記事に文字で出る（2026-09-23 に WordPress で発生）
+      text.split(/\n(?=- )/).forEach((item) => list.push(inline(item.replace(/^- /, '')).replace(/\n\s*/g, '')));
       return;
     }
     flushList();

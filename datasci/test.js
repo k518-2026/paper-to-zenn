@@ -162,6 +162,12 @@ function unitTests() {
           html.includes('<a href="https://doi.org/x" target="_blank" rel="noopener">書誌</a>'), html.slice(0, 300));
     check('Markdown→HTML: 次に読む論文は箇条書き',
           (html.match(/<li>/g) || []).length === 2 && html.includes('<ul>') && html.includes('理由です。'));
+    // タグを足してからエスケープすると、<br /> が記事に文字で出る（2026-09-23 に WordPress で発生）
+    check('Markdown→HTML: タグが文字で出ない（エスケープの順番）',
+          !html.includes('&lt;br') && !html.includes('&lt;a ') && !html.includes('&lt;strong'), html);
+    check('Markdown→HTML: 箇条書きの中も改行は <br /> になる',
+          /<li><a [^>]+>論文A<\/a><br \/>被引用数: 9<br \/>理由です。<\/li>/.test(html),
+          (html.match(/<li>.*?<\/li>/) || [])[0]);
     check('Markdown→HTML: 逃がした角括弧を戻す', html.includes('式 [1] を使います'), html);
     check('Markdown→HTML: 注記（:::message）は小さい文字に', html.includes('<small>免責です。</small>'));
     check('Markdown→HTML: 下書き指定とショートコード',
