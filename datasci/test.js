@@ -178,6 +178,13 @@ async function flowTest() {
   process.env.GEMINI_API_KEY = 'test-key';
 
   const run = require('./run');
+  // メールの送り口は最初から偽物にしておく（設定が無いのに送ろうとしたら捕まえるため）
+  let sentMail = null;
+  const wp = require('./lib/wordpress');
+  const realTransport = wp.createTransport;
+  wp.createTransport = () => ({ sendMail: async (m) => { sentMail = m; return { messageId: '<test>' }; } });
+  ['WP_POST_EMAIL', 'SMTP_USER', 'SMTP_PASSWORD'].forEach((k) => { delete process.env[k]; });
+
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'datasci-test-'));
   run.options.root = tmp;
   run.options.dryRun = false;
@@ -216,6 +223,42 @@ async function flowTest() {
   check('用語: 実在し、意味も合うものだけリンク（無い項目・意味違いは外す）',
         md.includes('[縮小推定](https://ja.wikipedia.org/wiki/%E7%B8%AE%E5%B0%8F%E6%8E%A8%E5%AE%9A)') && !md.includes('過学習]('), state.senseChecked);
   check('次に読む論文: 範囲外の番号は落とす', (md.match(/^- \[/gm) || []).length === 1, md.match(/^- \[.*/gm));
+
+  // WordPress へのメール投稿（同じ記事を送る）
+  check('WordPress: 設定が無ければ送らない', sentMail === null && made && !made.wpSentAt, JSON.stringify(sentMail));
+  {
+    Object.assign(process.env, { WP_POST_EMAIL: 'secret@post.wordpress.com', SMTP_USER: 'me@example.com', SMTP_PASSWORD: 'pw' });
+
+    const paper = { title: 'Study number 1 on shrinkage estimators', authors: ['Alice Adams'], venue: 'J', volume: '1',
+                    issue: '', pages: '1–9', year: '2025', citedBy: 499, url: 'https://doi.org/10.1000/test.1' };
+    const article = {
+      titleJa: '「縮小推定」の新しい当てはめ方',
+      sections: Object.fromEntries(config.sections.map((s) => [s.key, '縮小推定と過学習の話です。<script>'])),
+      links: [{ term: '縮小推定', url: 'https://ja.wikipedia.org/wiki/%E7%B8%AE%E5%B0%8F%E6%8E%A8%E5%AE%9A' }],
+      nextReads: [{ paper: { title: 'Foundations', authors: ['B'], venue: 'J2', year: '2020', citedBy: 10, url: 'https://doi.org/x' },
+                    reason: '土台の論文です。' }]
+    };
+    await wp.sendArticle(paper, article, '2026-09-23');
+
+    check('WordPress: 件名は【論文紹介】＋和訳タイトル', sentMail.subject === '【論文紹介】「縮小推定」の新しい当てはめ方', sentMail.subject);
+    check('WordPress: 宛先と差出人', sentMail.to === 'secret@post.wordpress.com' && sentMail.from.includes('me@example.com'), sentMail.from);
+    const html = sentMail.html;
+    check('WordPress: 見出しと書誌と被引用数',
+          html.includes('<h2>(3) 手法の中身：仕組みと計算の要点</h2>') &&
+          html.includes('href="https://doi.org/10.1000/test.1" target="_blank" rel="noopener"') &&
+          html.includes('被引用数: 499（OpenAlex, 2026-09-23 時点）'), html.slice(0, 200));
+    check('WordPress: 用語リンクは別ウィンドウ',
+          html.includes('<a href="https://ja.wikipedia.org/wiki/%E7%B8%AE%E5%B0%8F%E6%8E%A8%E5%AE%9A" target="_blank" rel="noopener">縮小推定</a>'));
+    check('WordPress: タグを逃がす（生の script を入れない）', html.includes('&lt;script&gt;') && !html.includes('<script>'));
+    check('WordPress: ショートコードを末尾に付ける',
+          html.includes('[category 論文紹介]') && html.includes('[tags 論文紹介,データ分析,機械学習,統計]') &&
+          html.includes('[publicize off]') && html.trim().endsWith('[end]'), html.slice(-120));
+    check('WordPress: <hr> と -- を入れない（署名扱いで本文が消える）', !/<hr|(^|\n)--/.test(html));
+    check('WordPress: 次に読む論文も入る', html.includes('<li>') && html.includes('土台の論文です。'));
+
+    wp.createTransport = realTransport;
+    ['WP_POST_EMAIL', 'SMTP_USER', 'SMTP_PASSWORD'].forEach((k) => { delete process.env[k]; });
+  }
 
   const rows = JSON.parse(fs.readFileSync(path.join(tmp, config.paths.ledger), 'utf8'));
   check('台帳: PDF なし・テーマ外・記事 が残る',

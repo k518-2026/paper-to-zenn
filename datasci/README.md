@@ -20,6 +20,7 @@ Gemini     6観点・和訳タイトル・専門用語・紹介文を JSON で�
            字数が外れた観点だけ、本文なしの軽い問い合わせで書き直させる
 Wikipedia  用語の項目が実在するか、意味が記事と合うかを確かめる（合わなければ張らない）
 Markdown   articles/datasci-<OpenAlexID>.md を書く
+WordPress  同じ記事を HTML にしてメール投稿（設定があるときだけ。失敗しても Zenn の記事は残す）
 台帳       datasci/ledger.json に記録（記事にしなかった論文も残し、二度と取りに行かない）
 ```
 
@@ -41,6 +42,7 @@ node datasci/run.js --force     # その日すでに作っていても、もう1
 | `GEMINI_API_KEY` | 必須 | Google AI Studio のキー |
 | `OPENALEX_API_KEY` | ほぼ必須 | https://openalex.org/settings/api で発行（無料・1日 $1 分）。無いと共有 IP の枠（1日 $0.10）を取り合ってすぐ 429 になる |
 | `ANTHROPIC_API_KEY` | 任意 | **Gemini の全モデルが混雑したときだけ** Claude Sonnet 5 で書く（1記事 10 円前後）。無ければその日は記事なしで終わる |
+| `WP_POST_EMAIL` `SMTP_USER` `SMTP_PASSWORD` | 任意 | 同じ記事を WordPress にもメールで投稿する。3つ揃っていないときは Zenn だけ |
 
 ## 決めごと・注意点
 
@@ -68,5 +70,6 @@ datasci/
     pdf.js         PDF の取得と pdftotext
     gemini.js      記事の生成と字数の調整
     wikipedia.js   用語の実在と意味の確認
-    render.js      書誌・用語リンク・Zenn の Markdown
+    render.js      書誌・用語リンク・Zenn の Markdown・WordPress の HTML
+    wordpress.js   メール投稿（<hr> と -- は入れない。署名扱いで本文が消える）
 ```

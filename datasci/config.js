@@ -99,6 +99,17 @@ module.exports = {
     type: 'idea'
   },
 
+  // --- WordPress（同じ記事をメールでも投稿する）---
+  // 鍵は WP_POST_EMAIL / SMTP_USER / SMTP_PASSWORD。無ければ送らずに Zenn だけで終わる
+  wordpress: {
+    titlePrefix: '【論文紹介】',
+    senderName: '論文紹介（データ分析）',
+    category: '論文紹介',
+    tags: '論文紹介,データ分析,機械学習,統計',
+    draft: false,
+    publicize: false      // WordPress 側の SNS 自動共有は使わない
+  },
+
   // --- 置き場所（リポジトリのルートから）---
   paths: {
     articles: 'articles',

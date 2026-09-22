@@ -8,6 +8,7 @@
     "start": "node run.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0"
+    "@anthropic-ai/sdk": "^0.74.0",
+    "nodemailer": "^7.0.9"
   }
 }

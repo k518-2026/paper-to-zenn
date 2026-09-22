@@ -56,6 +56,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # Gemini が全部混雑したときだけ使う
+          # 同じ記事を WordPress にもメールで投稿する
+          WP_POST_EMAIL: ${{ secrets.WP_POST_EMAIL }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           args=""
           [ "${{ inputs.dry_run }}" = "true" ] && args="$args --dry-run"

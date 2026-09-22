@@ -33,6 +33,8 @@ const deps = {
   writeArticle: gemini.writeArticle,
   verifyTerms: wikipedia.verifyTerms,
   dropWrongSenses: wikipedia.dropWrongSenses,
+  sendToWordPress: (paper, article, asOf) => require('./lib/wordpress').sendArticle(paper, article, asOf),
+  wordpressAvailable: () => require('./lib/wordpress').available(),
   now: () => new Date()
 };
 
@@ -145,14 +147,30 @@ async function tryPaper(paper, rows) {
     fs.writeFileSync(file, markdown, 'utf8');
   }
 
+  // WordPress にも同じ記事をメールで送る。失敗しても Zenn の記事は残す
+  let wpSentAt = '';
+  if (!options.dryRun && deps.wordpressAvailable()) {
+    try {
+      const sent = await deps.sendToWordPress(paper, article, today());
+      wpSentAt = new Date().toISOString();
+      console.log('  WordPress に送りました: ' + sent.subject);
+    } catch (e) {
+      article.warnings.push('WordPress に送れなかった: ' + e.message.slice(0, 120));
+      console.warn('  WordPress に送れませんでした: ' + e.message.slice(0, 200));
+    }
+  } else if (!options.dryRun) {
+    console.log('  WordPress の設定（WP_POST_EMAIL / SMTP_USER / SMTP_PASSWORD）が無いので、Zenn だけにします。');
+  }
+
   rows.push(ledger.record(paper, ledger.STATUS.DONE, {
     slug,
     titleJa: article.titleJa,
     url: 'https://zenn.dev/' + config.zenn.user + '/articles/' + slug,
+    wpSentAt,
     model: article.model,
     note: article.warnings.join(' / ')
   }));
-  return { path: rel, titleJa: article.titleJa, markdown };
+  return { path: rel, titleJa: article.titleJa, markdown, wpSentAt };
 }
 
 if (require.main === module) {
