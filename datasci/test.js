@@ -142,6 +142,34 @@ function unitTests() {
         md === '[縮小推定](https://ja.wikipedia.org/wiki/B)は[推定](https://ja.wikipedia.org/wiki/A)の一種です。縮小推定は便利です。', md);
   check('リンク: 角括弧を逃がす', render.linkifyTerms('式 [1] を使う', []) === '式 \\[1\\] を使う');
 
+  // 書いた記事から WordPress の本文に直す（send-wp.js が使う）
+  (function () {
+    const md = [
+      '---', 'title: "【論文紹介】ためし"', 'emoji: "📈"', '---', '',
+      'リード文です。', '',
+      '**原題**: Title  ', '[書誌](https://doi.org/x)  ', '被引用数: 3（OpenAlex, 2026-09-23 時点）', '',
+      '## (1) 何を解くための手法か', '', '本文です。式 \\[1\\] を使います。', '',
+      '## (6) 次に読む論文', '', '導入文です。', '',
+      '- [論文A](https://doi.org/a)  \n  被引用数: 9  \n  理由です。',
+      '- [論文B](https://doi.org/b)  \n  被引用数: 8  \n  別の理由です。', '',
+      ':::message', '免責です。', ':::', ''
+    ].join('\n');
+    const wp = { category: '論文紹介', tags: 'a,b', draft: true, publicize: false };
+    const html = render.markdownToHtml(md, wp);
+    check('Markdown→HTML: フロントマターを落とす', !html.includes('title:') && !html.includes('emoji'), html.slice(0, 80));
+    check('Markdown→HTML: 見出しと段落', html.includes('<h2>(1) 何を解くための手法か</h2>') && html.includes('<p>リード文です。</p>'));
+    check('Markdown→HTML: リンクは別ウィンドウ',
+          html.includes('<a href="https://doi.org/x" target="_blank" rel="noopener">書誌</a>'), html.slice(0, 300));
+    check('Markdown→HTML: 次に読む論文は箇条書き',
+          (html.match(/<li>/g) || []).length === 2 && html.includes('<ul>') && html.includes('理由です。'));
+    check('Markdown→HTML: 逃がした角括弧を戻す', html.includes('式 [1] を使います'), html);
+    check('Markdown→HTML: 注記（:::message）は小さい文字に', html.includes('<small>免責です。</small>'));
+    check('Markdown→HTML: 下書き指定とショートコード',
+          html.includes('[status draft]') && html.includes('[category 論文紹介]') && html.trim().endsWith('[end]'));
+    check('Markdown→HTML: CRLF でも段落に分かれる',
+          render.markdownToHtml(md.replace(/\n/g, '\r\n'), wp) === html);
+  })();
+
   check('slug の形式', /^[a-z0-9_-]{12,50}$/.test(render.zennSlug('W2597900308')), render.zennSlug('W2597900308'));
   check('タイトルは70字以内', Array.from(render.zennTitle('あ'.repeat(100))).length <= 70);
 

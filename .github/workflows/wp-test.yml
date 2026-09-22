@@ -1,0 +1,50 @@
+name: WordPress だけ試す
+
+# すでに書いた記事を WordPress にメール投稿するだけの手動用ワークフロー。
+# 記事は作り直さない（Gemini を使わない）ので、メールの設定だけを確かめられる。
+# 既定は下書きなので、確かめ終わるまでブログには出ない。
+
+on:
+  workflow_dispatch:
+    inputs:
+      article:
+        description: '記事の slug（空ならいちばん新しい datasci-*.md）'
+        type: string
+        default: ''
+      publish:
+        description: '下書きではなく公開する'
+        type: boolean
+        default: false
+      show_only:
+        description: '送らずに、送る中身をログに出すだけ'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 依存パッケージを入れる
+        run: npm install --prefix datasci --no-audit --no-fund
+
+      - name: WordPress に送る
+        env:
+          WP_POST_EMAIL: ${{ secrets.WP_POST_EMAIL }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          args=""
+          [ -n "${{ inputs.article }}" ] && args="$args ${{ inputs.article }}"
+          [ "${{ inputs.publish }}" = "true" ] && args="$args --publish"
+          [ "${{ inputs.show_only }}" = "true" ] && args="$args --show"
+          node datasci/send-wp.js $args

@@ -31,7 +31,15 @@ node datasci/test.js            # 自己検査（通信は偽物。外部パッ�
 node datasci/test.js --live     # OpenAlex・PDF・Wikipedia だけ本物に当てる（Gemini は呼ばない）
 node datasci/run.js --dry-run   # 記事を作ってログに出すだけ（ファイルは書かない。GEMINI_API_KEY が要る）
 node datasci/run.js --force     # その日すでに作っていても、もう1本作る
+
+node datasci/send-wp.js --show  # WordPress に送る中身（件名と本文）を表示するだけ
+node datasci/send-wp.js         # いちばん新しい記事を **下書き** として WordPress に送る
+node datasci/send-wp.js --publish datasci-w123   # 記事を指定して公開で送る
 ```
+
+`send-wp.js` は記事を作り直さない（Gemini を使わない）。すでに書いた Markdown を WordPress の本文に
+直して送るだけなので、**メールの設定だけを確かめたいとき**に使う。既定は下書きなのでブログには出ない。
+GitHub では「WordPress だけ試す」ワークフロー（`wp-test.yml`）を手動実行しても同じことができる。
 
 `--live` と本番の実行には `pdftotext`（poppler）が要る。Actions では apt で入れている。
 
