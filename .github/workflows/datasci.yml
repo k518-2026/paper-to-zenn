@@ -1,0 +1,74 @@
+name: DataSci to Zenn
+
+# データ分析の最新手法 → Zenn（1日1本）
+#
+#   OpenAlex で直近2年の手法論文を被引用数順に拾う → PDF → pdftotext →
+#   Gemini が6観点で紹介文を書く → 日本語版 Wikipedia で用語を確認 →
+#   articles/datasci-*.md を書いてコミットする（Zenn はリポジトリを見て公開する）
+#
+# Zenn は新規公開が1日1本前後で頭打ちになるので、1日1本しかコミットしない。
+# 必要な Secrets: GEMINI_API_KEY, OPENALEX_API_KEY
+
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 毎日 07:00 (Asia/Tokyo) = 22:00 UTC 前日
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ファイルを書かずに、できた記事をログに出すだけ'
+        type: boolean
+        default: false
+      force:
+        description: 'その日すでに作っていても、もう1本作る'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: datasci
+  cancel-in-progress: false
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 外部パッケージは使っていない。通信を偽物に差し替えた通しテスト
+      - name: 自己検査
+        run: node datasci/test.js
+
+      - name: pdftotext（poppler）を入れる
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
+      - name: 記事を作る
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+        run: |
+          args=""
+          [ "${{ inputs.dry_run }}" = "true" ] && args="$args --dry-run"
+          [ "${{ inputs.force }}" = "true" ] && args="$args --force"
+          node datasci/run.js $args
+
+      # 記事が作れなかった日も、台帳（対象外にした論文）は残す
+      - name: コミットして push
+        if: ${{ always() && inputs.dry_run != true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add articles datasci/ledger.json
+          if git diff --cached --quiet; then
+            echo "変更はありません。"
+          else
+            slug=$(git diff --cached --name-only -- articles | head -1 | xargs -r basename | sed 's/\.md$//')
+            git commit -m "Add article ${slug:-datasci ledger}"
+            git push
+          fi
