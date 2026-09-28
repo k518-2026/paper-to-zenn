@@ -13,5 +13,21 @@
     "url": "https://zenn.dev/k518/articles/datasci-w4406170795",
     "model": "gemini-3.8-flash",
     "note": "用語の意味を確認できなかったためリンクなし: The operation was aborted due to timeout"
+  },
+  {
+    "id": "W4409376239",
+    "doi": "10.18637/jss.v112.i01",
+    "title": "Parsimoniously Fitting Large Multivariate Random Effects in glmmTMB",
+    "venue": "Journal of Statistical Software",
+    "year": "2025",
+    "citedBy": 455,
+    "status": "記事にした",
+    "date": "2026-09-29",
+    "slug": "datasci-w4409376239",
+    "titleJa": "glmmTMBにおける大規模多変量ランダム効果の簡潔な当てはめ",
+    "url": "https://zenn.dev/k518/articles/datasci-w4409376239",
+    "wpSentAt": "2026-09-28T23:29:20.727Z",
+    "model": "gemini-3.8-flash",
+    "note": ""
   }
 ]
