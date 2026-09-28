@@ -94,14 +94,14 @@ async function main() {
 async function tryPaper(paper, rows) {
   const pdf = await deps.fetchPdf(paper);
   if (!pdf) {
-    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, { note: 'PDF を取得できない' }));
+    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, today(), { note: 'PDF を取得できない' }));
     return null;
   }
   console.log(`  PDF ${Math.round(pdf.bytes / 1024)}KB`);
 
   const text = deps.extractText(pdf);
   if (text.length < config.pdfTextMinChars) {
-    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, { note: `本文の文字を取り出せない（${text.length} 字）` }));
+    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, today(), { note: `本文の文字を取り出せない（${text.length} 字）` }));
     console.log(`  本文を取り出せませんでした（${text.length} 字）`);
     return null;
   }
@@ -112,7 +112,7 @@ async function tryPaper(paper, rows) {
   console.log(`  モデル: ${article.model}`);
 
   if (!article.relevant) {
-    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, { note: 'テーマ外: ' + article.relevanceReason }));
+    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, today(), { note: 'テーマ外: ' + article.relevanceReason }));
     console.log('  テーマ外として飛ばしました: ' + article.relevanceReason);
     return null;
   }
@@ -130,7 +130,7 @@ async function tryPaper(paper, rows) {
   const rel = config.paths.articles + '/' + slug + '.md';
   const file = path.join(options.root, rel);
   if (fs.existsSync(file)) {
-    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, { note: '同じ slug の記事がすでにある', slug }));
+    rows.push(ledger.record(paper, ledger.STATUS.SKIPPED, today(), { note: '同じ slug の記事がすでにある', slug }));
     console.log('  すでに同じ記事があります: ' + rel);
     return null;
   }
@@ -162,7 +162,7 @@ async function tryPaper(paper, rows) {
     console.log('  WordPress の設定（WP_POST_EMAIL / SMTP_USER / SMTP_PASSWORD）が無いので、Zenn だけにします。');
   }
 
-  rows.push(ledger.record(paper, ledger.STATUS.DONE, {
+  rows.push(ledger.record(paper, ledger.STATUS.DONE, today(), {
     slug,
     titleJa: article.titleJa,
     url: 'https://zenn.dev/' + config.zenn.user + '/articles/' + slug,

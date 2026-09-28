@@ -197,7 +197,7 @@ function unitTests() {
   check('slug の形式', /^[a-z0-9_-]{12,50}$/.test(render.zennSlug('W2597900308')), render.zennSlug('W2597900308'));
   check('タイトルは70字以内', Array.from(render.zennTitle('あ'.repeat(100))).length <= 70);
 
-  const rows = [ledgerLib.record({ id: 'W1', doi: '10.1/A' }, ledgerLib.STATUS.DONE)];
+  const rows = [ledgerLib.record({ id: 'W1', doi: '10.1/A' }, ledgerLib.STATUS.DONE, '2026-09-23')];
   const keys = ledgerLib.knownKeys(rows);
   check('台帳: ID でも DOI でも既出と分かる',
         ledgerLib.isKnown(keys, { id: 'W1', doi: '' }) && ledgerLib.isKnown(keys, { id: 'W9', doi: '10.1/a' }) &&

@@ -14,11 +14,6 @@ const STATUS = {
   FAILED: '失敗'
 };
 
-/** 日付は日本時間で持つ（UTC のままだと朝の実行で前日になる） */
-function jstDate() {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-}
-
 function load(file) {
   try {
     const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -49,7 +44,12 @@ function isKnown(keys, paper) {
   return !!paper.doi && keys.has('doi:' + String(paper.doi).toLowerCase());
 }
 
-function record(paper, status, extra = {}) {
+/**
+ * 日付は呼び出し側（run.js の today()）から受け取る。ここで時計を読むと、
+ * 「今日もう作ったか」の判定と別の時計になり、テストで日付を固定しても合わなくなる
+ * （2026-09-24〜 自己検査が失敗し続け、記事が作られなかった）
+ */
+function record(paper, status, date, extra = {}) {
   return {
     id: paper.id,
     doi: paper.doi,
@@ -58,7 +58,7 @@ function record(paper, status, extra = {}) {
     year: paper.year,
     citedBy: paper.citedBy,
     status,
-    date: jstDate(),
+    date,
     ...extra
   };
 }
@@ -68,4 +68,4 @@ function madeToday(rows, today) {
   return rows.some((r) => r.status === STATUS.DONE && r.date === today);
 }
 
-module.exports = { load, save, knownKeys, isKnown, record, madeToday, jstDate, STATUS };
+module.exports = { load, save, knownKeys, isKnown, record, madeToday, STATUS };
