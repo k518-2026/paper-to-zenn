@@ -10,8 +10,9 @@ name: DataSci to Zenn
 # 必要な Secrets: GEMINI_API_KEY, OPENALEX_API_KEY
 
 on:
-  schedule:
-    - cron: '0 22 * * *'   # 毎日 07:00 (Asia/Tokyo) = 22:00 UTC 前日
+  # 2026-09-29 一時停止。再開するときは次の2行のコメントを外す
+  # schedule:
+  #   - cron: '0 22 * * *'   # 毎日 07:00 (Asia/Tokyo) = 22:00 UTC 前日
   workflow_dispatch:
     inputs:
       dry_run:
