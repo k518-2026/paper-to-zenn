@@ -1,6 +1,6 @@
 /** 通信の共通部分。再試行と、よくある失敗の見分け方 */
 
-const USER_AGENT = 'paper-to-zenn-datasci/1.0 (mailto:yamamoto.k518@gmail.com)';
+const USER_AGENT = 'paper-to-zenn-datasci/1.0 (mailto:contact@example.com)';
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
